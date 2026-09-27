@@ -5,7 +5,7 @@ export default function Hero() {
     <section id="top" className="hero">
       <img
         className="hero__image"
-        src="https://images.unsplash.com/photo-1618920127003-86312e46397d?auto=format&fit=crop&w=2000&q=90"
+        src="/hero-banner.jpg"
         alt="Streetwear model in a dark hoodie against an urban background"
         loading="eager"
       />
