@@ -12,8 +12,8 @@ export default function Sustainability() {
     <section className="sustainability">
       <img
         className="sustainability__image"
-        src="https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=2000&q=90"
-        alt="A hiker looking out over green mountains, wearing a NOVA jacket"
+        src="https://images.unsplash.com/photo-1600599067176-1f47e3b6fe47?auto=format&fit=crop&w=2000&q=90"
+        alt="A hiker with a backpack walking through a green mountain landscape"
         loading="lazy"
       />
       <div className="sustainability__scrim" aria-hidden="true" />

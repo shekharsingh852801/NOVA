@@ -12,7 +12,7 @@ export const fallbackProducts = [
     _id: "p2",
     name: "Cropped Hoodie",
     price: 65,
-    image: "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=700&q=85",
+    image: "https://images.unsplash.com/photo-1581322929500-043ae5f512d5?auto=format&fit=crop&w=700&q=85",
     tag: "New",
     colors: ["#1a1a1a", "#3a3a3a", "#8a8a8a"],
   },
@@ -20,7 +20,7 @@ export const fallbackProducts = [
     _id: "p3",
     name: "Utility Cargo Pants",
     price: 89,
-    image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=700&q=85",
+    image: "https://images.unsplash.com/photo-1789938581122-d2af11a5d55a?auto=format&fit=crop&w=700&q=85",
     tag: "Trending",
     colors: ["#4a4a3a", "#c9a685"],
   },
@@ -28,7 +28,7 @@ export const fallbackProducts = [
     _id: "p4",
     name: "Lightweight Jacket",
     price: 120,
-    image: "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=700&q=85",
+    image: "https://images.unsplash.com/photo-1629131678696-0b56fe341b74?auto=format&fit=crop&w=700&q=85",
     tag: null,
     colors: ["#5c6650"],
   },
@@ -36,7 +36,7 @@ export const fallbackProducts = [
     _id: "p5",
     name: "Essential Tee",
     price: 45,
-    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=700&q=85",
+    image: "https://images.unsplash.com/photo-1790267462668-0519505ea776?auto=format&fit=crop&w=700&q=85",
     tag: null,
     colors: ["#1a1a1a", "#e8e2d6"],
   },
@@ -46,12 +46,12 @@ export const categories = [
   {
     name: "Men",
     cta: "Shop Now",
-    image: "https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=600&q=85",
+    image: "https://images.unsplash.com/photo-1618920127003-86312e46397d?auto=format&fit=crop&w=600&q=85",
   },
   {
     name: "Women",
     cta: "Shop Now",
-    image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=600&q=85",
+    image: "https://images.unsplash.com/photo-1581322929500-043ae5f512d5?auto=format&fit=crop&w=600&q=85",
   },
   {
     name: "Accessories",
@@ -61,14 +61,14 @@ export const categories = [
   {
     name: "Sale",
     cta: "Up to 50% Off",
-    image: "https://images.unsplash.com/photo-1551232864-3f0890e580d9?auto=format&fit=crop&w=600&q=85",
+    image: "https://images.unsplash.com/photo-1776217659364-f79c44c2fab6?auto=format&fit=crop&w=600&q=85",
   },
 ];
 
 export const lookbookImages = [
-  "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=500&q=85",
-  "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=500&q=85",
-  "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=500&q=85",
-  "https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=500&q=85",
+  "https://images.unsplash.com/photo-1618920127003-86312e46397d?auto=format&fit=crop&w=500&q=85",
+  "https://images.unsplash.com/photo-1581322929500-043ae5f512d5?auto=format&fit=crop&w=500&q=85",
+  "https://images.unsplash.com/photo-1629131678696-0b56fe341b74?auto=format&fit=crop&w=500&q=85",
+  "https://images.unsplash.com/photo-1600599067176-1f47e3b6fe47?auto=format&fit=crop&w=500&q=85",
   "https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&fit=crop&w=500&q=85",
 ];

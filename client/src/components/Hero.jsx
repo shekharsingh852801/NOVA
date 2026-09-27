@@ -5,8 +5,8 @@ export default function Hero() {
     <section id="top" className="hero">
       <img
         className="hero__image"
-        src="https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=2000&q=90"
-        alt="Model wearing a NOVA hoodie, looking up against a shadowed wall"
+        src="https://images.unsplash.com/photo-1618920127003-86312e46397d?auto=format&fit=crop&w=2000&q=90"
+        alt="Streetwear model in a dark hoodie against an urban background"
         loading="eager"
       />
       <div className="hero__scrim" aria-hidden="true" />

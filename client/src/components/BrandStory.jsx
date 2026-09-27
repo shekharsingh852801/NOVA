@@ -12,8 +12,8 @@ export default function BrandStory() {
     <section id="about" className="brand-story">
       <div className="brand-story__media">
         <img
-          src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=90"
-          alt="Two NOVA customers sitting together outdoors, wearing hoodies"
+          src="https://images.unsplash.com/photo-1552334488-bec0803d3c5b?auto=format&fit=crop&w=1200&q=90"
+          alt="Two friends in casual streetwear sharing a bench"
           loading="lazy"
         />
       </div>
