@@ -27,7 +27,7 @@ export default function Testimonials() {
 
   return (
     <section className="testimonials">
-      <div className="section-header">
+      <div className="section-header testimonials__intro">
         <div>
           <p className="eyebrow eyebrow--light">Real Stories</p>
           <h2 className="section-heading section-heading--light">Loved by Our Community</h2>

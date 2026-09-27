@@ -12,7 +12,7 @@ export default function Sustainability() {
     <section className="sustainability">
       <img
         className="sustainability__image"
-        src="https://picsum.photos/id/1043/1600/1000"
+        src="https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=2000&q=90"
         alt="A hiker looking out over green mountains, wearing a NOVA jacket"
         loading="lazy"
       />

@@ -12,20 +12,25 @@ export default function BrandStory() {
     <section id="about" className="brand-story">
       <div className="brand-story__media">
         <img
-          src="https://picsum.photos/id/1027/900/900"
+          src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=90"
           alt="Two NOVA customers sitting together outdoors, wearing hoodies"
           loading="lazy"
         />
       </div>
 
       <div className="brand-story__content">
-        <p className="eyebrow eyebrow--light">Our Story</p>
-        <h2 className="section-heading section-heading--light">More Than Just Clothing</h2>
-        <p className="brand-story__copy">
-          We started NOVA with a simple belief — that what you wear should mean
-          something. Our designs are inspired by real people, real stories and a
-          better future.
-        </p>
+        <div className="brand-story__intro">
+          <p className="eyebrow eyebrow--light">Our Story</p>
+          <h2 className="section-heading section-heading--light">More Than Just Clothing</h2>
+          <p className="brand-story__copy">
+            We started NOVA with a simple belief — that what you wear should mean
+            something. Our designs are inspired by real people, real stories and a
+            better future.
+          </p>
+          <a href="#about" className="btn btn--light">
+            Our Journey <ArrowIcon />
+          </a>
+        </div>
 
         <div className="brand-story__stats">
           {STATS.map((stat) => (
@@ -36,9 +41,6 @@ export default function BrandStory() {
           ))}
         </div>
 
-        <a href="#about" className="btn btn--light">
-          Our Journey <ArrowIcon />
-        </a>
       </div>
     </section>
   );

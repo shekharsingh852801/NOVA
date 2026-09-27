@@ -41,19 +41,21 @@ export default function NewArrivals() {
             <div className="product-card__media">
               {product.tag && <span className="product-card__tag">{product.tag}</span>}
               <img src={product.image} alt={product.name} loading="lazy" />
+            </div>
+            <h3 className="product-card__name">{product.name}</h3>
+            <p className="product-card__price">${product.price}</p>
+            <div className="product-card__options">
+              {product.colors?.length > 0 && (
+                <div className="product-card__colors" aria-hidden="true">
+                  {product.colors.map((color, i) => (
+                    <span key={i} className="product-card__swatch" style={{ background: color }} />
+                  ))}
+                </div>
+              )}
               <button className="product-card__add" aria-label={`Add ${product.name} to cart`}>
                 <PlusIcon />
               </button>
             </div>
-            <h3 className="product-card__name">{product.name}</h3>
-            <p className="product-card__price">${product.price}</p>
-            {product.colors?.length > 0 && (
-              <div className="product-card__colors" aria-hidden="true">
-                {product.colors.map((color, i) => (
-                  <span key={i} className="product-card__swatch" style={{ background: color }} />
-                ))}
-              </div>
-            )}
           </article>
         ))}
       </div>

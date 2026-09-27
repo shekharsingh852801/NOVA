@@ -5,7 +5,7 @@ export default function Hero() {
     <section id="top" className="hero">
       <img
         className="hero__image"
-        src="https://picsum.photos/id/1074/1600/1200"
+        src="https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=2000&q=90"
         alt="Model wearing a NOVA hoodie, looking up against a shadowed wall"
         loading="eager"
       />

@@ -5,7 +5,7 @@ export default function Newsletter() {
     <section className="newsletter">
       <img
         className="newsletter__image"
-        src="https://picsum.photos/id/1018/1600/900"
+        src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=85"
         alt="Mountains at sunset"
         loading="lazy"
       />
