@@ -27,7 +27,7 @@ export default function BrandStory() {
             something. Our designs are inspired by real people, real stories and a
             better future.
           </p>
-          <a href="#about" className="btn btn--light">
+          <a href="#/about" className="btn btn--light">
             Our Journey <ArrowIcon />
           </a>
         </div>

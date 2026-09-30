@@ -1,6 +1,6 @@
 import { PlayIcon, ArrowIcon } from "./Icons.jsx";
 
-export default function Hero() {
+export default function Hero({ onWatchVideo }) {
   return (
     <section id="top" className="hero">
       <img
@@ -25,7 +25,7 @@ export default function Hero() {
           <a href="#new-arrivals" className="btn btn--light">
             Shop New Arrivals <ArrowIcon />
           </a>
-          <button className="btn btn--ghost-light">
+          <button className="btn btn--ghost-light" onClick={onWatchVideo}>
             <span className="btn__play">
               <PlayIcon />
             </span>

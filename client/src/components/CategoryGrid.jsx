@@ -1,7 +1,7 @@
 import { categories } from "../data/products.js";
 import { ArrowIcon } from "./Icons.jsx";
 
-export default function CategoryGrid() {
+export default function CategoryGrid({ onCategorySelect }) {
   return (
     <section id="shop" className="category-section">
       <div className="category-section__intro">
@@ -11,14 +11,14 @@ export default function CategoryGrid() {
           From everyday essentials to seasonal statement pieces — explore our carefully
           curated categories.
         </p>
-        <a href="#shop" className="btn btn--dark">
+        <button type="button" onClick={() => onCategorySelect("All")} className="btn btn--dark">
           Explore All <ArrowIcon />
-        </a>
+        </button>
       </div>
 
       <div className="category-grid">
         {categories.map((cat) => (
-          <a href="#shop" className="category-card" key={cat.name}>
+          <a href={`#/shop?category=${cat.name}`} className="category-card" key={cat.name} onClick={(event) => { event.preventDefault(); onCategorySelect(cat.name); }}>
             <img src={cat.image} alt={`${cat.name} collection`} loading="lazy" />
             <div className="category-card__scrim" aria-hidden="true" />
             <div className="category-card__label">

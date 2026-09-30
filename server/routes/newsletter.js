@@ -1,32 +1,38 @@
 import { Router } from "express";
-import Subscriber from "../models/Subscriber.js";
+import { getDB } from "../config/db.js";
 
 const router = Router();
 
 // POST /api/newsletter/subscribe  { email, source }
-router.post("/subscribe", async (req, res) => {
+router.post("/subscribe", (req, res, next) => {
   const { email, source } = req.body || {};
+  const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
 
-  if (!email || typeof email !== "string") {
+  if (!normalizedEmail) {
     return res.status(400).json({ message: "Email is required" });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return res.status(400).json({ message: "Please enter a valid email address" });
+  }
+  const normalizedSource = source || "newsletter-section";
+  if (!["hero", "newsletter-section", "footer"].includes(normalizedSource)) {
+    return res.status(400).json({ message: "Please check your subscription details" });
   }
 
   try {
-    const existing = await Subscriber.findOne({ email: email.toLowerCase().trim() });
-    if (existing) {
+    const result = getDB().prepare("INSERT INTO subscribers(email, source) VALUES (?, ?) ON CONFLICT(email) DO NOTHING")
+      .run(normalizedEmail, normalizedSource);
+    if (result.changes === 0) {
       return res.status(200).json({ message: "You're already subscribed — welcome back!" });
     }
 
-    const subscriber = await Subscriber.create({ email, source });
+    const subscriber = getDB().prepare("SELECT email, created_at FROM subscribers WHERE email = ?").get(normalizedEmail);
     res.status(201).json({
       message: "Subscribed! Watch your inbox for new drops.",
-      subscriber: { email: subscriber.email, createdAt: subscriber.createdAt },
+      subscriber: { email: subscriber.email, createdAt: subscriber.created_at },
     });
   } catch (err) {
-    if (err.name === "ValidationError") {
-      return res.status(400).json({ message: "Please enter a valid email address" });
-    }
-    res.status(500).json({ message: "Something went wrong. Please try again.", error: err.message });
+    return next(err);
   }
 });
 

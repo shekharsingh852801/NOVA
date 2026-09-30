@@ -28,7 +28,7 @@ export default function Sustainability() {
             We use eco-friendly fabrics, ethical production and sustainable
             packaging — because great style should never come at the earth's expense.
           </p>
-          <a href="#about" className="btn btn--light">
+          <a href="#/about" className="btn btn--light">
             Our Commitment <ArrowIcon />
           </a>
         </div>

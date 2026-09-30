@@ -3,4 +3,7 @@ dist/
 .env
 .env.*
 !.env.example
+server/data/*.sqlite
+server/data/*.sqlite-shm
+server/data/*.sqlite-wal
 .DS_Store

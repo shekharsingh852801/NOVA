@@ -1,40 +1,35 @@
-import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
-import connectDB from "./config/db.js";
-import productRoutes from "./routes/products.js";
-import testimonialRoutes from "./routes/testimonials.js";
-import newsletterRoutes from "./routes/newsletter.js";
+import { closeDB, connectDB } from "./config/db.js";
+import { createApp } from "./app.js";
 
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
+const app = createApp();
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || "*" }));
-app.use(express.json());
-
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", service: "nova-server" });
-});
-
-app.use("/api/products", productRoutes);
-app.use("/api/testimonials", testimonialRoutes);
-app.use("/api/newsletter", newsletterRoutes);
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
-});
-
-// Central error handler
-app.use((err, _req, res, _next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: "Internal server error" });
-});
-
-connectDB().then(() => {
-  app.listen(PORT, () => {
+async function startServer() {
+  await connectDB();
+  const server = app.listen(PORT, () => {
     console.log(`NOVA API running on http://localhost:${PORT}`);
   });
+
+  let isShuttingDown = false;
+  const shutdown = (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`${signal} received; shutting down NOVA API`);
+    server.close(async (error) => {
+      if (error) console.error("HTTP server shutdown failed:", error.message);
+      closeDB();
+      process.exitCode = error ? 1 : 0;
+    });
+  };
+
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+}
+
+startServer().catch((error) => {
+  console.error("NOVA API startup failed:", error.message);
+  process.exitCode = 1;
 });

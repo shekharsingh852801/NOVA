@@ -1,7 +1,7 @@
 import { lookbookImages } from "../data/products.js";
 import { ArrowIcon } from "./Icons.jsx";
 
-export default function Lookbook() {
+export default function Lookbook({ onShopLook }) {
   return (
     <section className="lookbook">
       <div className="lookbook__intro">
@@ -10,9 +10,9 @@ export default function Lookbook() {
         <p className="lookbook__copy">
           Real people. Real style. See how our community styles NOVA in everyday life.
         </p>
-        <a href="#journal" className="btn btn--dark">
+        <button type="button" onClick={onShopLook} className="btn btn--dark">
           View Lookbook <ArrowIcon />
-        </a>
+        </button>
       </div>
 
       <div className="lookbook__strip">

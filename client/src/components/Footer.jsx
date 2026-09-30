@@ -15,6 +15,24 @@ const LINK_COLUMNS = [
   },
 ];
 
+const LINK_PATHS = {
+  "New Arrivals": "shop?sort=newest",
+  Men: "shop?category=Men",
+  Women: "shop?category=Women",
+  Accessories: "shop?category=Accessories",
+  Sale: "sale",
+  "Help Center": "contact",
+  "Shipping Info": "policy/shipping",
+  "Returns & Exchanges": "policy/returns",
+  "Size Guide": "shop",
+  "Contact Us": "contact",
+  "Our Story": "about",
+  Sustainability: "about",
+  Careers: "contact",
+  Journal: "journal",
+  Press: "journal",
+};
+
 const SOCIALS = [
   { label: "Instagram", path: "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm5 5.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm5.6-1.1a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" },
   { label: "Facebook", path: "M14 9h3V6h-3c-1.7 0-3 1.3-3 3v2H9v3h2v6h3v-6h2.5l.5-3H14V9Z" },
@@ -47,7 +65,7 @@ export default function Footer() {
             <ul>
               {col.links.map((link) => (
                 <li key={link}>
-                  <a href="#top">{link}</a>
+                  <a href={`#/${LINK_PATHS[link] || "shop"}`}>{link}</a>
                 </li>
               ))}
             </ul>
@@ -64,9 +82,9 @@ export default function Footer() {
       <div className="footer__bottom">
         <p>© 2026 NOVA. All rights reserved.</p>
         <div className="footer__bottom-links">
-          <a href="#top">Privacy Policy</a>
-          <a href="#top">Terms of Service</a>
-          <a href="#top">Cookie Settings</a>
+          <a href="#/policy/privacy">Privacy Policy</a>
+          <a href="#/policy/terms">Terms of Service</a>
+          <a href="#/policy/cookies">Cookie Settings</a>
         </div>
         <button className="footer__lang">English</button>
       </div>
