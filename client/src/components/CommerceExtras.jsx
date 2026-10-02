@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { shopProducts } from "../data/products.js";
 import { useStore } from "../context/StoreContext.jsx";
+import { readStoredJson, writeStoredJson } from "../utils/storage.js";
 import { createBackInStockRequest, createContactRequest, isApiConfigured } from "../api/api.js";
 import { ArrowIcon, CloseIcon, StarIcon } from "./Icons.jsx";
 
 function readProfile() {
-  try { return JSON.parse(localStorage.getItem("nova-profile") || "{}"); } catch { return {}; }
+  return readStoredJson("nova-profile", {});
 }
 
 const formatPrice = (value) => `$${Number(value || 0).toFixed(2)}`;
+const money = formatPrice;
 
 export function CheckoutPage({ onPlaceOrder }) {
   const { cart, addresses } = useStore();
@@ -87,22 +89,198 @@ export function CheckoutPage({ onPlaceOrder }) {
   </main>;
 }
 
+function formatOrderDate(value) {
+  const safeDate = new Date(value);
+  if (Number.isNaN(safeDate.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(safeDate);
+}
+
+function getTrackingSummary(order = {}) {
+  const status = (order.status || "Confirmed").toLowerCase();
+  if (status.includes("cancel")) return { label: "Cancelled", progress: 0, note: "This order was cancelled before dispatch." };
+  if (status.includes("fail")) return { label: "Failed", progress: 0, note: "This order could not be completed and requires attention." };
+  if (status.includes("delay")) return { label: "Delayed", progress: 3, note: "This order is running behind the standard shipping window." };
+  if (status.includes("delivered")) return { label: "Delivered", progress: 5, note: "Your order has arrived." };
+  if (status.includes("out for delivery")) return { label: "Out for delivery", progress: 4, note: "The courier is on the final leg of delivery." };
+  if (status.includes("shipped")) return { label: "Shipped", progress: 3, note: "Your order has left NOVA and is in transit." };
+  if (status.includes("processing")) return { label: "Processing", progress: 2, note: "Your order is being packed and prepared for dispatch." };
+  if (status.includes("confirmed")) return { label: "Confirmed", progress: 1, note: "Your order has been confirmed and is in queue." };
+  if (status.includes("placed")) return { label: "Order placed", progress: 1, note: "Your order has been placed and we’re preparing it." };
+  return { label: order.status || "Confirmed", progress: 2, note: order.status || "Order confirmed." };
+}
+
+export function OrdersPage({ orders = [], onNavigate }) {
+  const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
+
+  return (
+    <main className="commerce-page account-page">
+      <p className="eyebrow eyebrow--dark">NOVA / ORDERS</p>
+      <h1>Your order history.</h1>
+      <p className="page-lede">Every order, from the edit you made earlier to the one arriving next.</p>
+
+      {sortedOrders.length ? (
+        <div className="account-layout">
+          <nav aria-label="Account sections">
+            <a href="#/account">Overview</a>
+            <a href="#/account/orders">Orders</a>
+            <a href="#/wishlist">Wishlist</a>
+            <a href="#/tracking">Track order</a>
+          </nav>
+          <div className="account-content" style={{ gridTemplateColumns: "1fr" }}>
+            {sortedOrders.map((order) => {
+              const itemCount = (order.lines || []).reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+              const firstItem = (order.lines || [])[0];
+              const product = firstItem?.product || shopProducts.find((item) => item.id === firstItem?.id) || null;
+              const tracking = getTrackingSummary(order);
+
+              return (
+                <article className="account-order" key={order.id} style={{ display: "grid", gridTemplateColumns: "88px 1fr auto", gap: "18px", alignItems: "center", padding: "18px 0" }}>
+                  <img src={product?.images?.[0] || shopProducts[0].images[0]} alt={product?.name || "Order item"} style={{ width: "88px", height: "110px", objectFit: "cover" }} />
+                  <div style={{ display: "grid", gap: "6px" }}>
+                    <strong style={{ fontSize: "12px" }}>#{order.id}</strong>
+                    <span style={{ color: "var(--muted-on-light)", fontSize: "11px" }}>{formatOrderDate(order.createdAt || order.date || new Date())}</span>
+                    <span style={{ fontSize: "11px" }}>{itemCount} item{itemCount === 1 ? "" : "s"} · {order.status || tracking.label}</span>
+                  </div>
+                  <div style={{ display: "grid", justifyItems: "end", gap: "10px" }}>
+                    <strong style={{ fontSize: "12px" }}>{money(order.total || 0)}</strong>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <button type="button" className="text-action" onClick={() => onNavigate(`account/orders/${order.id}`)}>View details</button>
+                      <button type="button" className="text-action" onClick={() => onNavigate("tracking")}>Track order</button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="empty-state">
+          <span className="empty-state__rule" />
+          <h2>No orders yet.</h2>
+          <p>Start with a considered piece and your first NOVA order will appear here.</p>
+          <button type="button" className="text-action" onClick={() => onNavigate("shop")}>Explore the collection <ArrowIcon /></button>
+        </div>
+      )}
+    </main>
+  );
+}
+
+export function OrderDetailPage({ orderId, orders = [], onNavigate }) {
+  const order = orders.find((item) => item.id === orderId);
+  const tracking = getTrackingSummary(order);
+
+  if (!order) {
+    return (
+      <main className="commerce-page account-page">
+        <p className="eyebrow eyebrow--dark">NOVA / ORDER</p>
+        <h1>Order not found.</h1>
+        <p className="page-lede">We couldn’t match that order reference. Try a recent order or head back to your account.</p>
+        <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
+          <button type="button" className="btn btn--dark" onClick={() => onNavigate("account/orders")}>Back to orders <ArrowIcon /></button>
+          <button type="button" className="text-action" onClick={() => onNavigate("account")}>Account overview</button>
+        </div>
+      </main>
+    );
+  }
+
+  const subtotal = (order.lines || []).reduce((sum, line) => sum + (line.product?.price || 0) * Number(line.quantity || 0), 0);
+  const shipping = subtotal >= 75 || subtotal === 0 ? 0 : 8;
+  const total = Number(order.total || subtotal + shipping);
+  const steps = ["Order placed", "Confirmed", "Processing", "Shipped", "Out for delivery", "Delivered"];
+  const detail = (order.shippingAddress || {});
+
+  return (
+    <main className="commerce-page account-page">
+      <p className="eyebrow eyebrow--dark">NOVA / ORDER DETAILS</p>
+      <h1>#{order.id}</h1>
+      <p className="page-lede">Placed {formatOrderDate(order.createdAt || order.date || new Date())} · {order.status || tracking.label}</p>
+
+      <div className="account-layout">
+        <nav aria-label="Account sections">
+          <a href="#/account">Overview</a>
+          <a href="#/account/orders">Orders</a>
+          <a href="#/wishlist">Wishlist</a>
+          <a href="#/tracking">Track order</a>
+        </nav>
+
+        <div className="account-content" style={{ gridTemplateColumns: "1fr" }}>
+          <section>
+            <h2>Order status</h2>
+            <div className="tracking-result" style={{ marginTop: 0 }}>
+              <p className="eyebrow eyebrow--dark">Current status</p>
+              <h2>{tracking.label}</h2>
+              <p className="muted-copy" style={{ marginTop: "10px" }}>{tracking.note}</p>
+              <div className="tracking-timeline" style={{ marginTop: "24px" }}>
+                {steps.map((status, index) => (
+                  <div key={status} className={index <= tracking.progress ? "is-complete" : ""}>
+                    <i />
+                    <span>{status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2>Items</h2>
+            {(order.lines || []).map((line) => {
+              const product = line.product || shopProducts.find((item) => item.id === line.id) || shopProducts[0];
+              return (
+                <div className="checkout-summary__item" key={`${line.id}-${line.size}-${line.color}`} style={{ gridTemplateColumns: "56px 1fr auto" }}>
+                  <img src={product.images[0]} alt={product.name} />
+                  <div>
+                    <span>{product.name}</span>
+                    <small>Size {line.size} · {line.color} · Qty {line.quantity}</small>
+                  </div>
+                  <strong>{money((product.price || 0) * Number(line.quantity || 0))}</strong>
+                </div>
+              );
+            })}
+          </section>
+
+          <section>
+            <h2>Order summary</h2>
+            <div className="checkout-summary__totals" style={{ marginTop: 0 }}>
+              <p><span>Subtotal</span><span>{money(subtotal)}</span></p>
+              <p><span>Shipping</span><span>{shipping ? money(shipping) : "Complimentary"}</span></p>
+              <p><span>Payment</span><span>{order.paymentMethod || "Cash on delivery"}</span></p>
+              <p className="checkout-summary__total"><strong>Total</strong><strong>{money(total)}</strong></p>
+            </div>
+          </section>
+
+          <section>
+            <h2>Shipping details</h2>
+            <div className="review-contact">
+              <strong>{order.name || "Customer"}</strong><br />
+              {detail.address || "Address not available"}<br />
+              {detail.city || "City not available"}, {detail.state || ""} {detail.postal || ""}
+            </div>
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "14px" }}>
+              <button type="button" className="btn btn--dark" onClick={() => onNavigate("tracking")}>Track order <ArrowIcon /></button>
+              <button type="button" className="text-action" onClick={() => onNavigate("account/orders")}>Back to orders</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export function AccountPage({ onNavigate }) {
   const { orders, wishlist, recentlyViewed, addresses, stockNotifications, contactRequests, addAddress, removeAddress } = useStore();
   const [profile, setProfile] = useState(readProfile);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [session, setSession] = useState(() => readStoredJson("nova-account-session", { mode: "guest" }));
   const [addressForm, setAddressForm] = useState({ label: "Home", recipient: "", address: "", city: "", state: "", postal: "" });
   const [addressError, setAddressError] = useState("");
   const recentProducts = recentlyViewed.map((id) => shopProducts.find((product) => product.id === id)).filter(Boolean);
 
   const saveProfile = (event) => {
     event.preventDefault();
-    try {
-      localStorage.setItem("nova-profile", JSON.stringify(profile));
-      setProfileSaved(true);
-    } catch {
-      setProfileSaved(false);
-    }
+    writeStoredJson("nova-profile", profile);
+    writeStoredJson("nova-account-session", { ...session, mode: "member" });
+    setSession({ ...session, mode: "member" });
+    setProfileSaved(true);
   };
 
   const saveAddress = (event) => {
@@ -116,25 +294,37 @@ export function AccountPage({ onNavigate }) {
     setAddressError("");
   };
 
+  const handleLogout = () => {
+    writeStoredJson("nova-account-session", { mode: "guest" });
+    setSession({ mode: "guest" });
+    onNavigate("shop");
+  };
+
   return <main className="commerce-page account-page">
     <p className="eyebrow eyebrow--dark">NOVA / YOUR ACCOUNT</p>
     <h1>Your space.</h1>
     <p className="page-lede">A personal place for your details, orders, and pieces on your list.</p>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "18px", paddingBottom: "18px", borderBottom: "1px solid var(--line-on-light)" }}>
+      <span style={{ color: "var(--muted-on-light)", fontSize: "11px" }}>{session.mode === "member" ? "NOVA member preview" : "Guest preview"}</span>
+      <button type="button" className="text-action" onClick={handleLogout}>Logout</button>
+    </div>
     <div className="account-layout">
-      <nav aria-label="Account sections"><a href="#account-profile">Profile</a><a href="#account-orders">Orders</a><a href="#/wishlist">Wishlist ({wishlist.length})</a><a href="#account-preferences">Size preferences</a><a href="#account-addresses">Addresses</a><a href="#account-requests">Requests</a><a href="#account-recent">Recently viewed</a></nav>
+      <nav aria-label="Account sections"><a href="#account-profile">Profile</a><a href="#/account/orders">Orders</a><a href="#/wishlist">Wishlist ({wishlist.length})</a><a href="#account-preferences">Size preferences</a><a href="#account-addresses">Addresses</a><a href="#account-requests">Requests</a><a href="#account-recent">Recently viewed</a></nav>
       <div className="account-content">
         <section id="account-profile">
           <h2>Profile details</h2>
           <form className="account-form" onSubmit={saveProfile}>
             <label>Name<input name="name" value={profile.name || ""} onChange={(event) => { setProfile({ ...profile, name: event.target.value }); setProfileSaved(false); }} placeholder="Your name" autoComplete="name" required /></label>
             <label>Email<input name="email" type="email" value={profile.email || ""} onChange={(event) => { setProfile({ ...profile, email: event.target.value }); setProfileSaved(false); }} placeholder="you@example.com" autoComplete="email" required /></label>
+            <label>Phone<input name="phone" type="tel" value={profile.phone || ""} onChange={(event) => { setProfile({ ...profile, phone: event.target.value }); setProfileSaved(false); }} placeholder="+1 (555) 123-4567" autoComplete="tel" /></label>
             <button className="btn btn--dark">Save profile</button>
             {profileSaved && <span className="inline-confirmation" role="status">Profile saved on this device.</span>}
           </form>
         </section>
         <section id="account-orders">
           <h2>Recent orders</h2>
-          {orders.length ? orders.slice(0, 4).map((order) => <div className="account-order" key={order.id}><span>{order.id}</span><span>{order.status}</span><button className="text-action" onClick={() => onNavigate("tracking")}>Track</button></div>) : <p className="muted-copy">Your orders will appear here.</p>}
+          {orders.length ? orders.slice(0, 3).map((order) => <div className="account-order" key={order.id}><span>{order.id}</span><span>{order.status || "Confirmed"}</span><button className="text-action" onClick={() => onNavigate(`account/orders/${order.id}`)}>View</button></div>) : <p className="muted-copy">Your orders will appear here.</p>}
+          {orders.length > 0 && <button className="text-action" onClick={() => onNavigate("account/orders")}>View all orders <ArrowIcon /></button>}
         </section>
         <section id="account-preferences">
           <h2>Size preferences</h2>

@@ -1,39 +1,26 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { readStoredJson, writeStoredJson } from "../utils/storage.js";
 
 const StoreContext = createContext(null);
 
-function readStorage(key, fallback) {
-  try {
-    const value = window.localStorage.getItem(key);
-    const parsed = value ? JSON.parse(value) : fallback;
-    return Array.isArray(fallback) && !Array.isArray(parsed) ? fallback : parsed;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeStorage(key, value) {
-  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* Storage may be unavailable. */ }
-}
-
 export function StoreProvider({ children }) {
-  const [cart, setCart] = useState(() => readStorage("nova-cart", []));
-  const [wishlist, setWishlist] = useState(() => readStorage("nova-wishlist", []));
-  const [recentlyViewed, setRecentlyViewed] = useState(() => readStorage("nova-recent", []));
-  const [orders, setOrders] = useState(() => readStorage("nova-orders", []));
-  const [addresses, setAddresses] = useState(() => readStorage("nova-addresses", []));
-  const [customerReviews, setCustomerReviews] = useState(() => readStorage("nova-reviews", []));
-  const [stockNotifications, setStockNotifications] = useState(() => readStorage("nova-stock-notifications", []));
-  const [contactRequests, setContactRequests] = useState(() => readStorage("nova-contact-requests", []));
+  const [cart, setCart] = useState(() => readStoredJson("nova-cart", []));
+  const [wishlist, setWishlist] = useState(() => readStoredJson("nova-wishlist", []));
+  const [recentlyViewed, setRecentlyViewed] = useState(() => readStoredJson("nova-recent", []));
+  const [orders, setOrders] = useState(() => readStoredJson("nova-orders", []));
+  const [addresses, setAddresses] = useState(() => readStoredJson("nova-addresses", []));
+  const [customerReviews, setCustomerReviews] = useState(() => readStoredJson("nova-reviews", []));
+  const [stockNotifications, setStockNotifications] = useState(() => readStoredJson("nova-stock-notifications", []));
+  const [contactRequests, setContactRequests] = useState(() => readStoredJson("nova-contact-requests", []));
 
-  useEffect(() => writeStorage("nova-cart", cart), [cart]);
-  useEffect(() => writeStorage("nova-wishlist", wishlist), [wishlist]);
-  useEffect(() => writeStorage("nova-recent", recentlyViewed), [recentlyViewed]);
-  useEffect(() => writeStorage("nova-orders", orders), [orders]);
-  useEffect(() => writeStorage("nova-addresses", addresses), [addresses]);
-  useEffect(() => writeStorage("nova-reviews", customerReviews), [customerReviews]);
-  useEffect(() => writeStorage("nova-stock-notifications", stockNotifications), [stockNotifications]);
-  useEffect(() => writeStorage("nova-contact-requests", contactRequests), [contactRequests]);
+  useEffect(() => { writeStoredJson("nova-cart", cart); }, [cart]);
+  useEffect(() => { writeStoredJson("nova-wishlist", wishlist); }, [wishlist]);
+  useEffect(() => { writeStoredJson("nova-recent", recentlyViewed); }, [recentlyViewed]);
+  useEffect(() => { writeStoredJson("nova-orders", orders); }, [orders]);
+  useEffect(() => { writeStoredJson("nova-addresses", addresses); }, [addresses]);
+  useEffect(() => { writeStoredJson("nova-reviews", customerReviews); }, [customerReviews]);
+  useEffect(() => { writeStoredJson("nova-stock-notifications", stockNotifications); }, [stockNotifications]);
+  useEffect(() => { writeStoredJson("nova-contact-requests", contactRequests); }, [contactRequests]);
 
   const addToCart = (product, size = product.sizes[0], quantity = 1, color = product.colors[0].name) => {
     setCart((current) => {

@@ -3,7 +3,7 @@ import { ArrowIcon } from "./Icons.jsx";
 
 export default function Lookbook({ onShopLook }) {
   return (
-    <section className="lookbook">
+    <section id="lookbook" className="lookbook">
       <div className="lookbook__intro">
         <p className="eyebrow eyebrow--dark">Style Inspiration</p>
         <h2 className="section-heading section-heading--dark">Our Lookbook</h2>

@@ -16,7 +16,7 @@ const LINK_COLUMNS = [
 ];
 
 const LINK_PATHS = {
-  "New Arrivals": "shop?sort=newest",
+  "New Arrivals": "shop?edit=new-arrivals",
   Men: "shop?category=Men",
   Women: "shop?category=Women",
   Accessories: "shop?category=Accessories",
@@ -86,7 +86,7 @@ export default function Footer() {
           <a href="#/policy/terms">Terms of Service</a>
           <a href="#/policy/cookies">Cookie Settings</a>
         </div>
-        <button className="footer__lang">English</button>
+        <span className="footer__lang" aria-label="Current language">English</span>
       </div>
     </footer>
   );

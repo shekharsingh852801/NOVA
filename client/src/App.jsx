@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AnnouncementBar from "./components/AnnouncementBar.jsx";
 import Navbar from "./components/Navbar.jsx";
 import Hero from "./components/Hero.jsx";
@@ -13,8 +13,16 @@ import Newsletter from "./components/Newsletter.jsx";
 import Footer from "./components/Footer.jsx";
 import { shopProducts } from "./data/products.js";
 import { StoreProvider, useStore } from "./context/StoreContext.jsx";
+import { readStoredJson, writeStoredJson } from "./utils/storage.js";
 import { createOrder, isApiConfigured } from "./api/api.js";
-import { AccountPage, CheckoutPage, ContactPage, FilmModal } from "./components/CommerceExtras.jsx";
+import {
+  AccountPage,
+  CheckoutPage,
+  ContactPage,
+  FilmModal,
+  OrderDetailPage,
+  OrdersPage,
+} from "./components/CommerceExtras.jsx";
 import {
   CartDrawer,
   CartPage,
@@ -40,8 +48,10 @@ function currentRoute() {
 }
 
 function Storefront() {
-  const { cartCount, addToCart, updateQuantity, saveOrder, orders } = useStore();
+  const { cartCount, wishlist, addToCart, updateQuantity, saveOrder, orders } = useStore();
   const [route, setRoute] = useState(currentRoute);
+  const routeRef = useRef(route);
+  const routeScrollPositions = useRef(new Map());
   const [cartOpen, setCartOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quickView, setQuickView] = useState(null);
@@ -53,8 +63,19 @@ function Storefront() {
   const [latestOrder, setLatestOrder] = useState(null);
 
   useEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => { window.history.scrollRestoration = previousRestoration; };
+  }, []);
+
+  useEffect(() => {
     const syncRoute = () => {
-      setRoute(currentRoute());
+      const hash = window.location.hash;
+      if (hash && !hash.startsWith("#/")) return;
+      const nextRoute = currentRoute();
+      routeScrollPositions.current.set(routeRef.current.split("?")[0], window.scrollY);
+      routeRef.current = nextRoute;
+      setRoute(nextRoute);
       setCartOpen(false);
       setSearchOpen(false);
       setQuickView(null);
@@ -65,6 +86,19 @@ function Storefront() {
     window.addEventListener("hashchange", syncRoute);
     return () => window.removeEventListener("hashchange", syncRoute);
   }, []);
+
+  useEffect(() => {
+    const pathname = route.split("?")[0];
+    if (pathname.startsWith("product/")) {
+      window.scrollTo({ left: 0, top: 0, behavior: "instant" });
+      return;
+    }
+    if (pathname === "shop" || pathname === "sale" || pathname === "search" || pathname.startsWith("collections/")) {
+      const scrollTop = routeScrollPositions.current.get(pathname) || 0;
+      const frame = window.requestAnimationFrame(() => window.scrollTo({ left: 0, top: scrollTop, behavior: "instant" }));
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [route]);
 
   useEffect(() => {
     document.body.classList.toggle("store-overlay-open", cartOpen || searchOpen || Boolean(quickView) || sizeOpen || lookOpen || filmOpen);
@@ -91,6 +125,13 @@ function Storefront() {
   const collection = collections.find((item) => item.slug === collectionSlug);
   const articleSlug = pathname.startsWith("journal/") ? pathname.slice("journal/".length) : "";
   const articlePage = pathname === "journal" || Boolean(articleSlug);
+
+  useEffect(() => {
+    const section = pathname === "" ? params.get("section") : null;
+    if (!section) return undefined;
+    const frame = window.requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: "smooth" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname, queryString]);
 
   const openQuickView = (item) => {
     if (item?.look) {
@@ -136,13 +177,14 @@ function Storefront() {
     <>
       <AnnouncementBar />
       <Navbar
+        route={route}
         transparent={pathname === ""}
         cartCount={cartCount}
+        wishlistCount={wishlist.length}
         onNavigate={navigate}
         onSearch={() => setSearchOpen(true)}
         onCart={() => setCartOpen(true)}
         onWishlist={() => navigate("wishlist")}
-        onAccount={() => navigate("account")}
       />
       {pathname === "" ? (
         <main id="top" className="home-page">
@@ -150,9 +192,8 @@ function Storefront() {
           <FeatureBar />
           <NewArrivals
             products={shopProducts.filter((item) => item.newArrival || item.featured).slice(0, 5)}
-            onProductSelect={(item) => navigate(`product/${item.slug}`)}
             onQuickView={openQuickView}
-            onViewAll={() => navigate("shop?sort=newest")}
+            onViewAll={() => navigate("shop?edit=new-arrivals")}
           />
           <CategoryGrid onCategorySelect={(item) => navigate(item === "Sale" ? "sale" : `shop?category=${item}`)} />
           <BrandStory />
@@ -161,8 +202,10 @@ function Storefront() {
           <Lookbook onShopLook={() => setLookOpen(true)} />
           <Newsletter />
         </main>
+      ) : pathname === "search" ? (
+        <ShopPage category="All" query={query} sortBy={sortBy} routePath={pathname} queryString={queryString} onQuickView={openQuickView} />
       ) : pathname === "shop" || pathname === "sale" ? (
-        <ShopPage category={category} query={query} sortBy={sortBy} onQuickView={openQuickView} />
+        <ShopPage category={category} query={query} sortBy={sortBy} routePath={pathname} queryString={queryString} onQuickView={openQuickView} />
       ) : pathname === "wishlist" ? (
         <WishlistPage onQuickView={openQuickView} onNavigate={navigate} />
       ) : pathname === "cart" ? (
@@ -176,7 +219,7 @@ function Storefront() {
       ) : pathname === "collections" ? (
         <CollectionsPage />
       ) : collection ? (
-        <CollectionDetail collection={collection} onQuickView={openQuickView} />
+        <CollectionDetail collection={collection} routePath={pathname} queryString={queryString} onQuickView={openQuickView} />
       ) : articlePage ? (
         <JournalPage articleSlug={articleSlug} />
       ) : pathname === "about" ? (
@@ -191,6 +234,10 @@ function Storefront() {
         <ContactPage />
       ) : pathname === "account" ? (
         <AccountPage orders={orders} onNavigate={navigate} />
+      ) : pathname === "account/orders" ? (
+        <OrdersPage orders={orders} onNavigate={navigate} />
+      ) : pathname.startsWith("account/orders/") ? (
+        <OrderDetailPage orderId={pathname.slice("account/orders/".length)} orders={orders} onNavigate={navigate} />
       ) : pathname.startsWith("policy/") ? (
         <PolicyPage slug={pathname.slice("policy/".length)} />
       ) : product ? (
@@ -214,7 +261,12 @@ function Storefront() {
       )}
       <Footer />
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} onNavigate={navigate} />
-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <SearchOverlay
+        open={searchOpen}
+        initialQuery={pathname === "search" ? query : ""}
+        onClose={() => setSearchOpen(false)}
+        onSubmit={(value) => navigate(`search?q=${encodeURIComponent(value)}`)}
+      />
       {quickView && <QuickView
         key={quickView.id}
         product={quickView}
@@ -229,10 +281,8 @@ function Storefront() {
         onSelect={(size) => {
           if (!sizeTarget) return;
           setRecommendedSizes((current) => ({ ...current, [sizeTarget.id]: size }));
-          try {
-            const profile = JSON.parse(localStorage.getItem("nova-profile") || "{}");
-            localStorage.setItem("nova-profile", JSON.stringify({ ...profile, size }));
-          } catch { /* Browser storage can be unavailable. */ }
+          const profile = readStoredJson("nova-profile", {});
+          writeStoredJson("nova-profile", { ...profile, size });
         }}
       />
       <ShopTheLook open={lookOpen} onClose={() => setLookOpen(false)} onOpenCart={() => setCartOpen(true)} />

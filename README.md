@@ -30,6 +30,19 @@ nova-landing/
 └── README.md
 ```
 
+## Root workspace commands
+
+Run dependency installation and project scripts from the repository root:
+
+```bash
+npm install
+npm run seed       # first-time catalog setup
+npm run dev:api    # start the API in one terminal
+npm run dev        # start Vite in another terminal
+npm test
+npm run build
+```
+
 ## Improvements over a static clone
 
 While matching the original design exactly, a few professional upgrades were added:
