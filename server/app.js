@@ -12,10 +12,13 @@ import testimonialRoutes from "./routes/testimonials.js";
 
 export function createApp() {
   const app = express();
-  const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
+  const allowedOrigins = new Set(
+    (process.env.CLIENT_ORIGIN || "http://localhost:5173,http://localhost:5174,http://localhost:5175")
     .split(",")
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((origin) => origin.replace(/\/+$/, ""))
+  );
 
   app.disable("x-powered-by");
   app.use((req, res, next) => {
@@ -27,7 +30,13 @@ export function createApp() {
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        if (!origin) return callback(null, true);
+
+        const normalizedOrigin = origin.replace(/\/+$/, "");
+        if (allowedOrigins.has(normalizedOrigin) || /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(normalizedOrigin)) {
+          return callback(null, true);
+        }
+
         const error = new Error("Origin is not allowed");
         error.status = 403;
         callback(error);

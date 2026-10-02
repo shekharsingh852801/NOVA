@@ -15,6 +15,7 @@ import { shopProducts } from "./data/products.js";
 import { StoreProvider, useStore } from "./context/StoreContext.jsx";
 import { readStoredJson, writeStoredJson } from "./utils/storage.js";
 import { createOrder, isApiConfigured } from "./api/api.js";
+import AdminApp from "./components/AdminApp.jsx";
 import {
   AccountPage,
   CheckoutPage,
@@ -172,6 +173,10 @@ function Storefront() {
 
   const orderId = params.get("order");
   const successOrder = latestOrder || orders.find((item) => item.id === orderId);
+
+  if (pathname === "admin" || pathname.startsWith("admin/")) {
+    return <AdminApp route={route} onNavigate={navigate} />;
+  }
 
   return (
     <>

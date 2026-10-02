@@ -52,6 +52,14 @@ export const PlusIcon = (props) => (
   </svg>
 );
 
+export const BellIcon = (props) => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+    <path d="M15 18H9" />
+    <path d="M18 18H6l1.2-1.3A3 3 0 0 0 8 14.7V11a4 4 0 1 1 8 0v3.7a3 3 0 0 0 .8 2l1.2 1.3Z" />
+    <path d="M10 18a2 2 0 0 0 4 0" />
+  </svg>
+);
+
 export const ChevronIcon = ({ direction = "left", ...props }) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
     <polyline points={direction === "left" ? "15 6 9 12 15 18" : "9 6 15 12 9 18"} />
