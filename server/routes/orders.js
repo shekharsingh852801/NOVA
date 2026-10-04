@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { getDB } from "../config/db.js";
+import { authenticateAdmin } from "../middleware/auth.js";
 
 const router = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -132,6 +133,92 @@ router.post("/track", (req, res, next) => {
     if (!row) return res.status(404).json({ message: "We couldn't find an order with those details" });
     res.json({ order: { orderNumber: row.order_number, status: row.status, progress: row.progress, total: row.total, createdAt: row.created_at } });
   } catch (error) { return next(error); }
+});
+
+// Admin: Get all orders
+router.get("/", authenticateAdmin, (req, res, next) => {
+  try {
+    const rows = getDB().prepare("SELECT * FROM orders ORDER BY created_at DESC").all();
+    const orders = rows.map(row => ({
+      ...row,
+      items: JSON.parse(row.items_json),
+      items_json: undefined
+    }));
+    res.json(orders);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Admin: Get single order
+router.get("/:id", authenticateAdmin, (req, res, next) => {
+  try {
+    const row = getDB().prepare("SELECT * FROM orders WHERE id = ?").get(req.params.id);
+    if (!row) return res.status(404).json({ message: "Order not found" });
+    const order = {
+      ...row,
+      items: JSON.parse(row.items_json),
+      items_json: undefined
+    };
+    res.json(order);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Admin: Update order status
+router.patch("/:id/status", authenticateAdmin, (req, res, next) => {
+  try {
+    const { status, payment_status } = req.body;
+    const db = getDB();
+    
+    // Simple status to progress mapping
+    const progressMap = {
+      'confirmed': 2,
+      'packed': 3,
+      'shipped': 4,
+      'out_for_delivery': 5,
+      'delivered': 6,
+      'cancelled': 1
+    };
+
+    let updates = [];
+    let values = [];
+
+    if (status && progressMap[status]) {
+      updates.push("status = ?");
+      values.push(status);
+      updates.push("progress = ?");
+      values.push(progressMap[status]);
+    }
+
+    if (payment_status) {
+      updates.push("payment_status = ?");
+      values.push(payment_status);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ message: "No valid fields to update" });
+    }
+
+    values.push(req.params.id);
+
+    const stmt = db.prepare(`UPDATE orders SET ${updates.join(", ")} WHERE id = ?`);
+    const result = stmt.run(...values);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(req.params.id);
+    res.json({
+      ...updated,
+      items: JSON.parse(updated.items_json),
+      items_json: undefined
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 export default router;

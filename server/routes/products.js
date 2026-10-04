@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getDB } from "../config/db.js";
+import { authenticateAdmin } from "../middleware/auth.js";
 
 const router = Router();
 const COLOR_VALUES = {
@@ -70,6 +71,148 @@ router.get("/:id", (req, res) => {
   const product = getDB().prepare("SELECT * FROM products WHERE slug = ?").get(req.params.id);
   if (!product) return res.status(404).json({ message: "Product not found" });
   res.json(serializeProduct(product));
+});
+
+// Helper to generate a slug if none is provided
+function generateSlug(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+}
+
+// POST /api/products (Admin Only)
+router.post("/", authenticateAdmin, (req, res) => {
+  const data = req.body;
+  const db = getDB();
+  
+  try {
+    const slug = data.slug || generateSlug(data.name);
+    
+    // Check if slug already exists
+    const existing = db.prepare("SELECT slug FROM products WHERE slug = ?").get(slug);
+    if (existing) {
+      return res.status(400).json({ message: "Product with this slug already exists" });
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO products (
+        slug, name, subcategory, price, compare_at_price, image, images_json,
+        tag, colors_json, sizes_json, description, material, fit, care,
+        rating, reviews, stock, tags_json, category, is_new_arrival, new_arrival,
+        featured, best_seller, trending, sort_order
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      )
+    `);
+
+    stmt.run(
+      slug,
+      data.name || '',
+      data.subcategory || '',
+      data.price || 0,
+      data.compareAtPrice || null,
+      data.image || '',
+      JSON.stringify(data.images || [data.image || '']),
+      data.tag || '',
+      JSON.stringify(data.colors || []),
+      JSON.stringify(data.sizes || []),
+      data.description || '',
+      data.material || '',
+      data.fit || '',
+      data.care || '',
+      data.rating || 0,
+      data.reviews || 0,
+      data.stock || 0,
+      JSON.stringify(data.tags || []),
+      data.category ? data.category.toLowerCase() : 'men',
+      data.isNewArrival ? 1 : 0,
+      data.newArrival ? 1 : 0,
+      data.featured ? 1 : 0,
+      data.bestSeller ? 1 : 0,
+      data.trending ? 1 : 0,
+      data.sortOrder || 0
+    );
+
+    const newProduct = db.prepare("SELECT * FROM products WHERE slug = ?").get(slug);
+    res.status(201).json(serializeProduct(newProduct));
+  } catch (error) {
+    console.error("Create product error:", error);
+    res.status(500).json({ message: "Failed to create product" });
+  }
+});
+
+// PUT /api/products/:id (Admin Only)
+router.put("/:id", authenticateAdmin, (req, res) => {
+  const data = req.body;
+  const slug = req.params.id;
+  const db = getDB();
+  
+  try {
+    const existing = db.prepare("SELECT slug FROM products WHERE slug = ?").get(slug);
+    if (!existing) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const stmt = db.prepare(`
+      UPDATE products SET
+        name = ?, subcategory = ?, price = ?, compare_at_price = ?, image = ?, images_json = ?,
+        tag = ?, colors_json = ?, sizes_json = ?, description = ?, material = ?, fit = ?, care = ?,
+        rating = ?, reviews = ?, stock = ?, tags_json = ?, category = ?, is_new_arrival = ?, new_arrival = ?,
+        featured = ?, best_seller = ?, trending = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE slug = ?
+    `);
+
+    stmt.run(
+      data.name !== undefined ? data.name : existing.name,
+      data.subcategory !== undefined ? data.subcategory : existing.subcategory,
+      data.price !== undefined ? data.price : existing.price,
+      data.compareAtPrice !== undefined ? data.compareAtPrice : existing.compare_at_price,
+      data.image !== undefined ? data.image : existing.image,
+      data.images !== undefined ? JSON.stringify(data.images) : existing.images_json,
+      data.tag !== undefined ? data.tag : existing.tag,
+      data.colors !== undefined ? JSON.stringify(data.colors) : existing.colors_json,
+      data.sizes !== undefined ? JSON.stringify(data.sizes) : existing.sizes_json,
+      data.description !== undefined ? data.description : existing.description,
+      data.material !== undefined ? data.material : existing.material,
+      data.fit !== undefined ? data.fit : existing.fit,
+      data.care !== undefined ? data.care : existing.care,
+      data.rating !== undefined ? data.rating : existing.rating,
+      data.reviews !== undefined ? data.reviews : existing.reviews,
+      data.stock !== undefined ? data.stock : existing.stock,
+      data.tags !== undefined ? JSON.stringify(data.tags) : existing.tags_json,
+      data.category !== undefined ? data.category.toLowerCase() : existing.category,
+      data.isNewArrival !== undefined ? (data.isNewArrival ? 1 : 0) : existing.is_new_arrival,
+      data.newArrival !== undefined ? (data.newArrival ? 1 : 0) : existing.new_arrival,
+      data.featured !== undefined ? (data.featured ? 1 : 0) : existing.featured,
+      data.bestSeller !== undefined ? (data.bestSeller ? 1 : 0) : existing.best_seller,
+      data.trending !== undefined ? (data.trending ? 1 : 0) : existing.trending,
+      data.sortOrder !== undefined ? data.sortOrder : existing.sort_order,
+      slug
+    );
+
+    const updatedProduct = db.prepare("SELECT * FROM products WHERE slug = ?").get(slug);
+    res.json(serializeProduct(updatedProduct));
+  } catch (error) {
+    console.error("Update product error:", error);
+    res.status(500).json({ message: "Failed to update product" });
+  }
+});
+
+// DELETE /api/products/:id (Admin Only)
+router.delete("/:id", authenticateAdmin, (req, res) => {
+  const slug = req.params.id;
+  const db = getDB();
+  
+  try {
+    const existing = db.prepare("SELECT slug FROM products WHERE slug = ?").get(slug);
+    if (!existing) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    db.prepare("DELETE FROM products WHERE slug = ?").run(slug);
+    res.json({ message: "Product deleted successfully" });
+  } catch (error) {
+    console.error("Delete product error:", error);
+    res.status(500).json({ message: "Failed to delete product" });
+  }
 });
 
 export default router;
