@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import AnnouncementBar from "./components/AnnouncementBar.jsx";
 import Navbar from "./components/Navbar.jsx";
 import Hero from "./components/Hero.jsx";
+import PagePreloader from "./components/PagePreloader.jsx";
 import FeatureBar from "./components/FeatureBar.jsx";
 import NewArrivals from "./components/NewArrivals.jsx";
 import CategoryGrid from "./components/CategoryGrid.jsx";
@@ -51,6 +52,7 @@ function currentRoute() {
 function Storefront() {
   const { cartCount, wishlist, addToCart, updateQuantity, saveOrder, orders } = useStore();
   const [route, setRoute] = useState(currentRoute);
+  const [showPagePreloader] = useState(() => currentRoute() === "");
   const routeRef = useRef(route);
   const routeScrollPositions = useRef(new Map());
   const [cartOpen, setCartOpen] = useState(false);
@@ -180,6 +182,7 @@ function Storefront() {
 
   return (
     <>
+      {showPagePreloader && <PagePreloader />}
       <AnnouncementBar />
       <Navbar
         route={route}
