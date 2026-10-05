@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 
 const DEFAULT_DATABASE_PATH = fileURLToPath(new URL("../data/nova.sqlite", import.meta.url));
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 let connection = null;
 
 const schema = `
@@ -93,6 +93,16 @@ const schema = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS support_stock_alert_once
     ON support_requests(kind, email, product_slug) WHERE kind = 'back-in-stock';
+
+  CREATE TABLE IF NOT EXISTS admins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'superadmin')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_login TEXT
+  );
 `;
 
 export function connectDB(databasePath = process.env.DATABASE_PATH || DEFAULT_DATABASE_PATH) {
