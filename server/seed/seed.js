@@ -6,13 +6,13 @@ dotenv.config();
 
 async function run() {
   await connectDB();
-  const result = seedDatabase({ reset: process.argv.includes("--reset") });
-  console.log(`SQLite seed complete: ${result.products} products and ${result.testimonials} testimonials.`);
-  closeDB();
+  const result = await seedDatabase({ reset: process.argv.includes("--reset") });
+  console.log(`MongoDB seed complete: ${result.products} products and ${result.testimonials} testimonials.`);
+  await closeDB();
 }
 
-run().catch((err) => {
+run().catch(async (err) => {
   console.error("Seeding failed:", err);
-  closeDB();
+  await closeDB();
   process.exit(1);
 });

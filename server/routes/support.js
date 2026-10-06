@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { getDB } from "../config/db.js";
+import { SupportRequest } from "../models/SupportRequest.js";
+import { Product } from "../models/Product.js";
 
 const router = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-router.post("/contact", (req, res, next) => {
+router.post("/contact", async (req, res, next) => {
   const { name, email, topic, message } = req.body || {};
   if (typeof name !== "string" || !name.trim() || name.length > 120) {
     return res.status(400).json({ message: "A valid name is required" });
@@ -20,37 +21,42 @@ router.post("/contact", (req, res, next) => {
   }
 
   try {
-    const result = getDB().prepare(`
-      INSERT INTO support_requests (kind, name, email, topic, message)
-      VALUES ('contact', ?, ?, ?, ?)
-    `).run(name.trim(), email.trim().toLowerCase(), topic.trim(), message.trim());
-    res.status(201).json({ requestId: String(result.lastInsertRowid), message: "Your message has been received" });
+    const newRequest = new SupportRequest({
+      kind: 'contact',
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      topic: topic.trim(),
+      message: message.trim()
+    });
+    await newRequest.save();
+    res.status(201).json({ requestId: String(newRequest._id), message: "Your message has been received" });
   } catch (error) { next(error); }
 });
 
-router.post("/back-in-stock", (req, res, next) => {
+router.post("/back-in-stock", async (req, res, next) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   const productSlug = typeof req.body?.productSlug === "string" ? req.body.productSlug.trim().toLowerCase() : "";
   if (!EMAIL_RE.test(email)) return res.status(400).json({ message: "A valid email address is required" });
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(productSlug)) return res.status(400).json({ message: "A valid product is required" });
 
   try {
-    const db = getDB();
-    const product = db.prepare("SELECT name, stock FROM products WHERE slug = ?").get(productSlug);
+    const product = await Product.findOne({ slug: productSlug });
     if (!product) return res.status(404).json({ message: "Product not found" });
     if (product.stock > 0) return res.status(409).json({ message: "This product is currently available" });
 
-    const existing = db.prepare("SELECT id FROM support_requests WHERE kind = 'back-in-stock' AND email = ? AND product_slug = ?")
-      .get(email, productSlug);
+    const existing = await SupportRequest.findOne({ kind: 'back-in-stock', email, product_slug: productSlug });
     if (existing) return res.json({ message: "You're already on the notification list" });
 
     try {
-      db.prepare(`
-        INSERT INTO support_requests (kind, email, product_slug, product_name)
-        VALUES ('back-in-stock', ?, ?, ?)
-      `).run(email, productSlug, product.name);
+      const newRequest = new SupportRequest({
+        kind: 'back-in-stock',
+        email,
+        product_slug: productSlug,
+        product_name: product.name
+      });
+      await newRequest.save();
     } catch (error) {
-      if (error.code === "SQLITE_CONSTRAINT_UNIQUE") return res.json({ message: "You're already on the notification list" });
+      if (error.code === 11000) return res.json({ message: "You're already on the notification list" });
       throw error;
     }
     res.status(201).json({ message: "Your back-in-stock request has been saved" });

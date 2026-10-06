@@ -1,59 +1,47 @@
-import { getDB } from "../config/db.js";
+import { Product } from "../models/Product.js";
+import { Testimonial } from "../models/Testimonial.js";
 import { products, testimonials } from "./seedData.js";
 
-export function seedDatabase({ reset = false } = {}) {
-  const db = getDB();
-  const seed = db.transaction(() => {
-    if (reset) {
-      db.exec("DELETE FROM products; DELETE FROM testimonials;");
-    }
+export async function seedDatabase({ reset = false } = {}) {
+  if (reset) {
+    await Product.deleteMany({});
+    await Testimonial.deleteMany({});
+  }
 
-    const insertProduct = db.prepare(`
-      INSERT INTO products (
-        slug, name, subcategory, price, compare_at_price, image, images_json, tag,
-        colors_json, sizes_json, description, material, fit, care, rating, reviews,
-        stock, tags_json, category, is_new_arrival, new_arrival, featured,
-        best_seller, trending, sort_order
-      ) VALUES (
-        @slug, @name, @subcategory, @price, @compareAtPrice, @image, @imagesJson, @tag,
-        @colorsJson, @sizesJson, @description, @material, @fit, @care, @rating, @reviews,
-        @stock, @tagsJson, @category, @isNewArrival, @newArrival, @featured,
-        @bestSeller, @trending, @sortOrder
-      ) ON CONFLICT(slug) DO NOTHING
-    `);
-
-    for (const product of products) {
-      insertProduct.run({
+  for (const product of products) {
+    const existing = await Product.findOne({ slug: product.slug });
+    if (!existing) {
+      await Product.create({
         ...product,
-        compareAtPrice: product.compareAtPrice,
-        imagesJson: JSON.stringify(product.images),
-        colorsJson: JSON.stringify(product.colors),
-        sizesJson: JSON.stringify(product.sizes),
-        tagsJson: JSON.stringify(product.tags),
-        isNewArrival: Number(product.isNewArrival),
-        newArrival: Number(product.newArrival),
+        compare_at_price: product.compareAtPrice,
+        images_json: JSON.stringify(product.images),
+        colors_json: JSON.stringify(product.colors),
+        sizes_json: JSON.stringify(product.sizes),
+        tags_json: JSON.stringify(product.tags),
+        is_new_arrival: Number(product.isNewArrival),
+        new_arrival: Number(product.newArrival),
         featured: Number(product.featured),
-        bestSeller: Number(product.bestSeller),
+        best_seller: Number(product.bestSeller),
         trending: Number(product.trending),
       });
     }
+  }
 
-    const testimonialCount = db.prepare("SELECT COUNT(*) AS count FROM testimonials").get().count;
-    if (reset || testimonialCount === 0) {
-      if (!reset) db.exec("DELETE FROM testimonials;");
-      const insertTestimonial = db.prepare(`
-        INSERT INTO testimonials (name, avatar, rating, verified, quote, posted_at, sort_order)
-        VALUES (@name, @avatar, @rating, @verified, @quote, @postedAt, @sortOrder)
-      `);
-      for (const testimonial of testimonials) {
-        insertTestimonial.run({ ...testimonial, verified: Number(testimonial.verified) });
-      }
+  const testimonialCount = await Testimonial.countDocuments();
+  if (reset || testimonialCount === 0) {
+    if (!reset) await Testimonial.deleteMany({});
+    for (const testimonial of testimonials) {
+      await Testimonial.create({
+        ...testimonial,
+        posted_at: testimonial.postedAt,
+        sort_order: testimonial.sortOrder,
+        verified: Number(testimonial.verified)
+      });
     }
-  });
+  }
 
-  seed();
   return {
-    products: db.prepare("SELECT COUNT(*) AS count FROM products").get().count,
-    testimonials: db.prepare("SELECT COUNT(*) AS count FROM testimonials").get().count,
+    products: await Product.countDocuments(),
+    testimonials: await Testimonial.countDocuments(),
   };
 }

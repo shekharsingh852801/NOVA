@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { getDB } from "../config/db.js";
+import { Admin } from "../models/Admin.js";
 import { authenticateAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "default_jwt_secret_change_in_produ
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 
 // POST /api/auth/login
-router.post("/login", (req, res) => {
+router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -17,8 +17,7 @@ router.post("/login", (req, res) => {
   }
 
   try {
-    const db = getDB();
-    const admin = db.prepare("SELECT * FROM admins WHERE email = ?").get(email);
+    const admin = await Admin.findOne({ email });
 
     if (!admin) {
       return res.status(401).json({ message: "Invalid credentials" });
@@ -31,10 +30,11 @@ router.post("/login", (req, res) => {
     }
 
     // Update last_login
-    db.prepare("UPDATE admins SET last_login = CURRENT_TIMESTAMP WHERE id = ?").run(admin.id);
+    admin.last_login = new Date().toISOString();
+    await admin.save();
 
     const payload = {
-      id: admin.id,
+      id: admin._id,
       role: admin.role,
     };
 
@@ -43,7 +43,7 @@ router.post("/login", (req, res) => {
     res.json({
       token,
       user: {
-        id: admin.id,
+        id: admin._id,
         name: admin.name,
         email: admin.email,
         role: admin.role,
@@ -56,10 +56,9 @@ router.post("/login", (req, res) => {
 });
 
 // GET /api/auth/me
-router.get("/me", authenticateAdmin, (req, res) => {
+router.get("/me", authenticateAdmin, async (req, res) => {
   try {
-    const db = getDB();
-    const admin = db.prepare("SELECT id, name, email, role, created_at, last_login FROM admins WHERE id = ?").get(req.admin.id);
+    const admin = await Admin.findById(req.admin.id).select("-password_hash");
     
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });

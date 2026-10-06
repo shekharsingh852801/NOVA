@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import { getDB } from "../config/db.js";
+import { Order } from "../models/Order.js";
+import { Product } from "../models/Product.js";
 import { authenticateAdmin } from "../middleware/auth.js";
+import mongoose from "mongoose";
 
 const router = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,21 +38,23 @@ export function validateOrderPayload(body) {
   return null;
 }
 
-router.post("/", (req, res, next) => {
+router.post("/", async (req, res, next) => {
   const validationError = validateOrderPayload(req.body);
   if (validationError) return res.status(400).json({ message: validationError });
 
-  const db = getDB();
   const orderNumber = `NV-${randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`;
-  const createOrder = db.transaction((body) => {
-    const getProduct = db.prepare("SELECT * FROM products WHERE slug = ?");
-    const reserveStock = db.prepare("UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ? AND stock >= ?");
+  const body = req.body;
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
     const lines = [];
     let subtotal = 0;
 
     for (const item of body.items) {
-      const product = getProduct.get(item.slug);
+      const product = await Product.findOne({ slug: item.slug }).session(session);
       if (!product) throw Object.assign(new Error("A selected product is no longer available"), { status: 404 });
+      
       const colors = JSON.parse(product.colors_json);
       const sizes = JSON.parse(product.sizes_json);
       const colorAvailable = colors.some((color) => (typeof color === "string" ? color : color.name) === item.color);
@@ -58,9 +62,12 @@ router.post("/", (req, res, next) => {
         throw invalid(`${product.name} does not have that size and colour combination`);
       }
 
-      if (reserveStock.run(item.quantity, product.slug, item.quantity).changes !== 1) {
+      if (product.stock < item.quantity) {
         throw conflict(`${product.name} no longer has enough stock`);
       }
+
+      product.stock -= item.quantity;
+      await product.save({ session });
 
       const lineTotal = Math.round(product.price * item.quantity * 100) / 100;
       subtotal += lineTotal;
@@ -77,48 +84,45 @@ router.post("/", (req, res, next) => {
 
     subtotal = Math.round(subtotal * 100) / 100;
     const shipping = subtotal >= 75 ? 0 : 8;
-    db.prepare(`
-      INSERT INTO orders (
-        order_number, customer_name, customer_email, customer_phone,
-        shipping_address, shipping_city, shipping_state, shipping_postal,
-        items_json, subtotal, shipping, total, payment_method
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      orderNumber,
-      body.customer.name.trim(),
-      body.customer.email.trim().toLowerCase(),
-      body.customer.phone.trim(),
-      body.shippingAddress.address.trim(),
-      body.shippingAddress.city.trim(),
-      body.shippingAddress.state.trim(),
-      body.shippingAddress.postal.trim(),
-      JSON.stringify(lines),
+    const total = Math.round((subtotal + shipping) * 100) / 100;
+
+    const newOrder = new Order({
+      order_number: orderNumber,
+      customer_name: body.customer.name.trim(),
+      customer_email: body.customer.email.trim().toLowerCase(),
+      customer_phone: body.customer.phone.trim(),
+      shipping_address: body.shippingAddress.address.trim(),
+      shipping_city: body.shippingAddress.city.trim(),
+      shipping_state: body.shippingAddress.state.trim(),
+      shipping_postal: body.shippingAddress.postal.trim(),
+      items_json: JSON.stringify(lines),
       subtotal,
       shipping,
-      Math.round((subtotal + shipping) * 100) / 100,
-      body.paymentMethod
-    );
-  });
+      total,
+      payment_method: body.paymentMethod
+    });
 
-  try {
-    createOrder(req.body);
+    await newOrder.save({ session });
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(201).json({
+      order: {
+        orderNumber: newOrder.order_number,
+        status: newOrder.status,
+        progress: newOrder.progress,
+        total: newOrder.total,
+        createdAt: newOrder.created_at,
+      },
+    });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     return next(error);
   }
-
-  const savedOrder = db.prepare("SELECT order_number, status, progress, total, created_at FROM orders WHERE order_number = ?").get(orderNumber);
-  res.status(201).json({
-    order: {
-      orderNumber: savedOrder.order_number,
-      status: savedOrder.status,
-      progress: savedOrder.progress,
-      total: savedOrder.total,
-      createdAt: savedOrder.created_at,
-    },
-  });
 });
 
-router.post("/track", (req, res, next) => {
+router.post("/track", async (req, res, next) => {
   const orderNumber = typeof req.body?.orderNumber === "string" ? req.body.orderNumber.trim().toUpperCase() : "";
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   if (!/^NV-[A-F0-9]{8}$/.test(orderNumber) || !EMAIL_RE.test(email)) {
@@ -126,21 +130,19 @@ router.post("/track", (req, res, next) => {
   }
 
   try {
-    const row = getDB().prepare(`
-      SELECT order_number, status, progress, total, created_at
-      FROM orders WHERE order_number = ? AND customer_email = ? COLLATE NOCASE
-    `).get(orderNumber, email);
+    const row = await Order.findOne({ order_number: orderNumber, customer_email: email });
     if (!row) return res.status(404).json({ message: "We couldn't find an order with those details" });
     res.json({ order: { orderNumber: row.order_number, status: row.status, progress: row.progress, total: row.total, createdAt: row.created_at } });
   } catch (error) { return next(error); }
 });
 
 // Admin: Get all orders
-router.get("/", authenticateAdmin, (req, res, next) => {
+router.get("/", authenticateAdmin, async (req, res, next) => {
   try {
-    const rows = getDB().prepare("SELECT * FROM orders ORDER BY created_at DESC").all();
+    const rows = await Order.find().sort({ created_at: -1 }).lean();
     const orders = rows.map(row => ({
       ...row,
+      id: row._id,
       items: JSON.parse(row.items_json),
       items_json: undefined
     }));
@@ -151,12 +153,13 @@ router.get("/", authenticateAdmin, (req, res, next) => {
 });
 
 // Admin: Get single order
-router.get("/:id", authenticateAdmin, (req, res, next) => {
+router.get("/:id", authenticateAdmin, async (req, res, next) => {
   try {
-    const row = getDB().prepare("SELECT * FROM orders WHERE id = ?").get(req.params.id);
+    const row = await Order.findById(req.params.id).lean();
     if (!row) return res.status(404).json({ message: "Order not found" });
     const order = {
       ...row,
+      id: row._id,
       items: JSON.parse(row.items_json),
       items_json: undefined
     };
@@ -167,12 +170,10 @@ router.get("/:id", authenticateAdmin, (req, res, next) => {
 });
 
 // Admin: Update order status
-router.patch("/:id/status", authenticateAdmin, (req, res, next) => {
+router.patch("/:id/status", authenticateAdmin, async (req, res, next) => {
   try {
     const { status, payment_status } = req.body;
-    const db = getDB();
     
-    // Simple status to progress mapping
     const progressMap = {
       'confirmed': 2,
       'packed': 3,
@@ -182,37 +183,27 @@ router.patch("/:id/status", authenticateAdmin, (req, res, next) => {
       'cancelled': 1
     };
 
-    let updates = [];
-    let values = [];
-
+    let updateData = {};
     if (status && progressMap[status]) {
-      updates.push("status = ?");
-      values.push(status);
-      updates.push("progress = ?");
-      values.push(progressMap[status]);
+      updateData.status = status;
+      updateData.progress = progressMap[status];
     }
-
     if (payment_status) {
-      updates.push("payment_status = ?");
-      values.push(payment_status);
+      updateData.payment_status = payment_status;
     }
 
-    if (updates.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ message: "No valid fields to update" });
     }
 
-    values.push(req.params.id);
-
-    const stmt = db.prepare(`UPDATE orders SET ${updates.join(", ")} WHERE id = ?`);
-    const result = stmt.run(...values);
-
-    if (result.changes === 0) {
+    const updated = await Order.findByIdAndUpdate(req.params.id, updateData, { new: true }).lean();
+    if (!updated) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(req.params.id);
     res.json({
       ...updated,
+      id: updated._id,
       items: JSON.parse(updated.items_json),
       items_json: undefined
     });

@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { getDB } from "../config/db.js";
+import { Subscriber } from "../models/Subscriber.js";
 
 const router = Router();
 
 // POST /api/newsletter/subscribe  { email, source }
-router.post("/subscribe", (req, res, next) => {
+router.post("/subscribe", async (req, res, next) => {
   const { email, source } = req.body || {};
   const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
 
@@ -20,16 +20,20 @@ router.post("/subscribe", (req, res, next) => {
   }
 
   try {
-    const result = getDB().prepare("INSERT INTO subscribers(email, source) VALUES (?, ?) ON CONFLICT(email) DO NOTHING")
-      .run(normalizedEmail, normalizedSource);
-    if (result.changes === 0) {
+    const existing = await Subscriber.findOne({ email: normalizedEmail });
+    if (existing) {
       return res.status(200).json({ message: "You're already subscribed — welcome back!" });
     }
 
-    const subscriber = getDB().prepare("SELECT email, created_at FROM subscribers WHERE email = ?").get(normalizedEmail);
+    const newSubscriber = new Subscriber({
+      email: normalizedEmail,
+      source: normalizedSource
+    });
+    await newSubscriber.save();
+
     res.status(201).json({
       message: "Subscribed! Watch your inbox for new drops.",
-      subscriber: { email: subscriber.email, createdAt: subscriber.created_at },
+      subscriber: { email: newSubscriber.email, createdAt: newSubscriber.created_at },
     });
   } catch (err) {
     return next(err);

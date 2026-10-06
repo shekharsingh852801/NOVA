@@ -20,7 +20,7 @@ async function startServer() {
     console.log(`${signal} received; shutting down NOVA API`);
     server.close(async (error) => {
       if (error) console.error("HTTP server shutdown failed:", error.message);
-      closeDB();
+      await closeDB();
       process.exitCode = error ? 1 : 0;
     });
   };
