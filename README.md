@@ -65,18 +65,23 @@ While matching the original design exactly, a few professional upgrades were add
 
 ```bash
 cd server
-cp .env.example .env      # set DATABASE_PATH if the default file location differs
+cp .env.example .env
+# Fill in MONGODB_URI, the Cloudinary settings, and a unique JWT_SECRET.
 npm install
 npm run seed               # inserts initial products + testimonials
 npm run seed -- --reset     # resets only the catalog and testimonials
 npm run dev                 # starts API on http://localhost:5001
 ```
 
-`CLIENT_ORIGIN` accepts a comma-separated allowlist for deployed frontends. The
-SQLite file is created automatically at `server/data/nova.sqlite` by default.
-`DATABASE_PATH` can select another file. `/api/health` reports liveness and
-`/api/health/ready` reports SQLite readiness. Newsletter, order, and support
-routes are rate-limited; request bodies are limited to 10 KB.
+`CLIENT_ORIGIN` accepts a comma-separated allowlist for deployed frontends.
+Normal API startup connects to MongoDB through `MONGODB_URI`; `DATABASE_PATH`
+is used by the SQLite migration utility, not by the server bootstrap.
+`/api/health` reports liveness and `/api/health/ready` reports database
+readiness. Newsletter, order, and support routes are rate-limited; request
+bodies are limited to 10 KB.
+
+Keep `server/.env` private and do not commit it. Generate a fresh JWT secret for
+each deployment; the API refuses to start without `JWT_SECRET`.
 
 Run backend checks with `cd server && npm test`. They use an in-memory SQLite
 database and cover successful orders, inventory rollback, tracking, and requests.
