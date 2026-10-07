@@ -12,16 +12,16 @@ export default function Hero({ onWatchVideo }) {
       <div className="hero__scrim" aria-hidden="true" />
 
       <div className="hero__content">
-        <p className="eyebrow eyebrow--light">New Drop</p>
-        <h1 className="hero__heading">
+        <p className="eyebrow eyebrow--light reveal-up">New Drop</p>
+        <h1 className="hero__heading reveal-up stagger-1">
           Modern Fits for a<br />
           Better Tomorrow
         </h1>
-        <p className="hero__subtext">
+        <p className="hero__subtext reveal-up stagger-2">
           Timeless styles. Premium comfort. Designed for the dreamers, the doers, and
           the everyday explorers.
         </p>
-        <div className="hero__actions">
+        <div className="hero__actions reveal-up stagger-3">
           <a href="#new-arrivals" className="btn btn--light">
             Shop New Arrivals <ArrowIcon />
           </a>

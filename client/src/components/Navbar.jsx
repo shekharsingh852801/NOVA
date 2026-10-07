@@ -15,7 +15,7 @@ function isRouteActive(route, section) {
   return pathname === section || pathname.startsWith(`${section}/`);
 }
 
-export default function Navbar({ cartCount = 0, wishlistCount = 0, route = "", transparent = false, onNavigate, onSearch, onCart, onWishlist }) {
+export default function Navbar({ customer, onLogout, cartCount = 0, wishlistCount = 0, route = "", transparent = false, onNavigate, onSearch, onCart, onWishlist }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -157,11 +157,24 @@ export default function Navbar({ cartCount = 0, wishlistCount = 0, route = "", t
         </div>
         {accountOpen && <div id="nova-account-menu" className="account-menu" role="region" aria-label="NOVA account access">
           <p className="eyebrow eyebrow--dark">Your NOVA</p>
-          <h2>Welcome.</h2>
-          <p className="account-menu__copy">Sign-in is not connected yet. Your guest profile and saved details stay on this device.</p>
-          <div className="account-menu__actions"><button ref={accountFirstRef} type="button" onClick={() => setAccountMessage("Sign in will be available when NOVA customer accounts launch.")}>Sign in</button><button type="button" onClick={() => setAccountMessage("Account creation will be available when NOVA customer accounts launch.")}>Create account</button></div>
-          {accountMessage && <p className="account-menu__message" role="status">{accountMessage}</p>}
-          <button type="button" className="btn btn--dark" onClick={() => navigate("account")}>Continue as guest <ArrowIcon /></button>
+          {customer ? (
+            <>
+              <h2>Welcome, {customer.name.split(" ")[0]}.</h2>
+              <p className="account-menu__copy">Access your orders, saved items, and account details.</p>
+              <div className="account-menu__actions">
+                <button type="button" onClick={() => navigate("account")}>Go to Account</button>
+                <button type="button" onClick={() => { onLogout(); setAccountOpen(false); }}>Sign out</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2>Welcome.</h2>
+              <p className="account-menu__copy">Sign in to access your orders and saved items.</p>
+              <div className="account-menu__actions">
+                <button ref={accountFirstRef} type="button" onClick={() => navigate("auth")}>Sign in / Register</button>
+              </div>
+            </>
+          )}
         </div>}
       </div>
       {menuOpen && <div className="mobile-nav-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMenuOpen(false)}>

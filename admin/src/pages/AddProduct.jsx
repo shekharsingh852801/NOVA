@@ -25,10 +25,23 @@ export default function AddProduct() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleMediaDrop = (e) => {
+  const handleMediaDrop = async (e) => {
     e.preventDefault();
-    // Dummy drop handler
-    setMedia([...media, { id: Date.now(), name: 'uploaded-image.png' }]);
+    const files = Array.from(e.dataTransfer?.files || e.target?.files || []);
+    
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const result = await adminApi.uploadMedia(file);
+        setMedia(prev => [...prev, { id: Date.now() + Math.random(), name: file.name, url: result.url }]);
+      } catch (err) {
+        alert("Failed to upload image: " + err.message);
+      }
+    }
+  };
+
+  const handleFileInput = (e) => {
+    handleMediaDrop(e);
   };
 
   const addVariant = () => {
@@ -55,6 +68,8 @@ export default function AddProduct() {
         category: formData.category || 'men',
         slug: formData.sku || undefined,
         tag: formData.status,
+        image: media.length > 0 ? media[0].url : '',
+        images: media.map(m => m.url),
       };
 
       await adminApi.createProduct(payload);
@@ -105,19 +120,26 @@ export default function AddProduct() {
                 padding: '40px',
                 textAlign: 'center',
                 color: 'var(--muted-on-dark)',
-                cursor: 'pointer'
+                position: 'relative'
               }}
-              onClick={() => handleMediaDrop({ preventDefault: () => {} })}
             >
               <div style={{ fontSize: '24px', marginBottom: '8px' }}>📁</div>
               <p>Drag and drop images here, or click to upload</p>
               <small>Accepts JPG, PNG, WEBP (Max 5MB)</small>
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*" 
+                onChange={handleFileInput} 
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} 
+              />
             </div>
             {media.length > 0 && (
               <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
-                {media.map((m) => (
-                  <div key={m.id} style={{ width: '80px', height: '80px', background: 'var(--black-soft)', border: '1px solid var(--line-on-dark)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: 'var(--muted-on-dark)' }}>
-                    {m.name}
+                {media.map((m, idx) => (
+                  <div key={m.id} style={{ width: '80px', height: '80px', background: 'var(--black-soft)', border: '1px solid var(--line-on-dark)', borderRadius: 'var(--radius-sm)', position: 'relative', overflow: 'hidden' }}>
+                    <img src={m.url} alt="upload" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button type="button" onClick={() => setMedia(media.filter((_, i) => i !== idx))} style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(255, 0, 0, 0.8)', color: 'white', border: 'none', cursor: 'pointer', padding: '2px 6px', fontSize: '12px' }}>&times;</button>
                   </div>
                 ))}
               </div>

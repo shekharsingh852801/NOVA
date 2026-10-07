@@ -12,6 +12,9 @@ export function StoreProvider({ children }) {
   const [customerReviews, setCustomerReviews] = useState(() => readStoredJson("nova-reviews", []));
   const [stockNotifications, setStockNotifications] = useState(() => readStoredJson("nova-stock-notifications", []));
   const [contactRequests, setContactRequests] = useState(() => readStoredJson("nova-contact-requests", []));
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => { writeStoredJson("nova-cart", cart); }, [cart]);
   useEffect(() => { writeStoredJson("nova-wishlist", wishlist); }, [wishlist]);
@@ -22,7 +25,34 @@ export function StoreProvider({ children }) {
   useEffect(() => { writeStoredJson("nova-stock-notifications", stockNotifications); }, [stockNotifications]);
   useEffect(() => { writeStoredJson("nova-contact-requests", contactRequests); }, [contactRequests]);
 
+  useEffect(() => {
+    // Dynamically fetch products instead of hardcoding
+    import("../api/api.js").then(({ fetchProducts }) => {
+      fetchProducts()
+        .then((data) => {
+          if (Array.isArray(data)) setProducts(data);
+          setProductsLoading(false);
+        })
+        .catch(() => {
+          // Fallback to local if backend is dead
+          import("../data/products.js").then((mod) => {
+            setProducts(mod.shopProducts);
+            setProductsLoading(false);
+          });
+        });
+    });
+  }, []);
+
+  const showToast = (message, type = "success") => {
+    const id = Date.now();
+    setToast({ id, message, type });
+    setTimeout(() => {
+      setToast((current) => (current?.id === id ? null : current));
+    }, 3000);
+  };
+
   const addToCart = (product, size = product.sizes[0], quantity = 1, color = product.colors[0].name) => {
+    showToast("Added to Bag", "success");
     setCart((current) => {
       const found = current.find((item) => item.id === product.id && item.size === size && item.color === color);
       if (found) {
@@ -42,10 +72,15 @@ export function StoreProvider({ children }) {
       : current.map((item) => item.id === id && item.size === size && (!color || item.color === color) ? { ...item, quantity } : item));
   };
 
+  const replaceCart = (newCart) => setCart(newCart);
+  const replaceOrders = (newOrders) => setOrders(newOrders);
+
   const toggleWishlist = (productId) => {
-    setWishlist((current) => current.includes(productId)
-      ? current.filter((id) => id !== productId)
-      : [...current, productId]);
+    setWishlist((current) => {
+      const isRemoving = current.includes(productId);
+      showToast(isRemoving ? "Removed from Wishlist" : "Saved to Wishlist", "success");
+      return isRemoving ? current.filter((id) => id !== productId) : [...current, productId];
+    });
   };
 
   const recordView = (productId) => {
@@ -66,8 +101,9 @@ export function StoreProvider({ children }) {
   return (
     <StoreContext.Provider value={{
       cart, wishlist, recentlyViewed, orders, addresses, customerReviews, stockNotifications, contactRequests,
-      cartCount, addToCart, updateQuantity, toggleWishlist, recordView, saveOrder,
-      addAddress, removeAddress, saveReview, saveStockNotification, saveContactRequest,
+      products, productsLoading, toast,
+      cartCount, addToCart, updateQuantity, replaceCart, replaceOrders, toggleWishlist, recordView, saveOrder,
+      addAddress, removeAddress, saveReview, saveStockNotification, saveContactRequest, showToast,
     }}>
       {children}
     </StoreContext.Provider>

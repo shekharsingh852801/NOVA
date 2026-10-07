@@ -20,21 +20,21 @@ export default function BrandStory() {
 
       <div className="brand-story__content">
         <div className="brand-story__intro">
-          <p className="eyebrow eyebrow--light">Our Story</p>
-          <h2 className="section-heading section-heading--light">More Than Just Clothing</h2>
-          <p className="brand-story__copy">
+          <p className="eyebrow eyebrow--light reveal-up">Our Story</p>
+          <h2 className="section-heading section-heading--light reveal-up stagger-1">More Than Just Clothing</h2>
+          <p className="brand-story__copy reveal-up stagger-2">
             We started NOVA with a simple belief — that what you wear should mean
             something. Our designs are inspired by real people, real stories and a
             better future.
           </p>
-          <a href="#/about" className="btn btn--light">
+          <a href="#/about" className="btn btn--light reveal-up stagger-3">
             Our Journey <ArrowIcon />
           </a>
         </div>
 
         <div className="brand-story__stats">
-          {STATS.map((stat) => (
-            <div className="brand-story__stat" key={stat.label}>
+          {STATS.map((stat, index) => (
+            <div className={`brand-story__stat reveal-up stagger-${index + 1}`} key={stat.label}>
               <p className="brand-story__stat-value">{stat.value}</p>
               <p className="brand-story__stat-label">{stat.label}</p>
             </div>

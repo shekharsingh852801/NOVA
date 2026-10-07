@@ -1,16 +1,19 @@
 import { randomUUID } from "node:crypto";
 import cors from "cors";
 import express from "express";
+import path from "path";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { isDatabaseReady } from "./config/db.js";
 import authRoutes from "./routes/auth.js";
+import customerAuthRoutes from "./routes/customerAuth.js";
 import newsletterRoutes from "./routes/newsletter.js";
 import orderRoutes from "./routes/orders.js";
 import productRoutes from "./routes/products.js";
 import supportRoutes from "./routes/support.js";
 import testimonialRoutes from "./routes/testimonials.js";
 import customerRoutes from "./routes/customers.js";
+import uploadRoutes from "./routes/upload.js";
 
 export function createApp() {
   const app = express();
@@ -60,9 +63,14 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRoutes);
+  app.use("/api/customer/auth", customerAuthRoutes);
   app.use("/api/products", productRoutes);
   app.use("/api/testimonials", testimonialRoutes);
   app.use("/api/customers", customerRoutes);
+  app.use("/api/upload", uploadRoutes);
+
+  // Serve static uploaded files
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
   app.use(
     "/api/orders",
     rateLimit({

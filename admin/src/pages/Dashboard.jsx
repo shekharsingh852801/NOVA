@@ -48,33 +48,31 @@ export default function Dashboard() {
     return <div className="loading-shell">Loading dashboard...</div>;
   }
 
-  const { products, orders } = data;
-
-  // Compute Metrics
-  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
-  const totalOrders = orders.length;
+  const { 
+    totalOrders = 0, 
+    totalRevenue = 0, 
+    recentOrders = [], 
+    totalProducts = 0,
+    orderStatusCounts = [],
+    lowStockProducts = []
+  } = data;
 
   const dashboardMetrics = [
-    { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString()}`, change: '+0.0%' },
+    { label: 'Total Revenue', value: `$${totalRevenue.toLocaleString()}`, change: '+0.0%' },
     { label: 'Total Orders', value: totalOrders.toString(), change: '+0.0%' },
-    { label: 'Total Products', value: products.length.toString(), change: '+0.0%' },
+    { label: 'Total Products', value: totalProducts.toString(), change: '+0.0%' },
   ];
 
-  // Order Status Pie Chart
-  const statusCounts = orders.reduce((acc, order) => {
-    const status = order.status;
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {});
-  const orderData = Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
+  // Map order statuses to pie chart
+  const orderData = orderStatusCounts;
 
-  // Low Stock
-  const lowStockProducts = products.filter(p => p.stock < 10).map((p, idx) => ({
-    id: p.id,
+  // Format Low Stock
+  const formattedLowStock = lowStockProducts.map(p => ({
+    id: p._id || p.id,
     product: p.name,
     stock: p.stock,
     status: p.stock > 0 ? 'Low Stock' : 'Out of Stock'
-  })).slice(0, 5);
+  }));
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible">
@@ -145,7 +143,7 @@ export default function Dashboard() {
           <TableCard
             title="Low Stock Products"
             columns={['Product', 'Stock', 'Status']}
-            rows={lowStockProducts}
+            rows={formattedLowStock}
             emptyText="No low stock items"
           />
         </motion.div>

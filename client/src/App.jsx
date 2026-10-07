@@ -12,10 +12,13 @@ import Testimonials from "./components/Testimonials.jsx";
 import Lookbook from "./components/Lookbook.jsx";
 import Newsletter from "./components/Newsletter.jsx";
 import Footer from "./components/Footer.jsx";
-import { shopProducts } from "./data/products.js";
+
 import { StoreProvider, useStore } from "./context/StoreContext.jsx";
 import { readStoredJson, writeStoredJson } from "./utils/storage.js";
-import { createOrder, isApiConfigured } from "./api/api.js";
+import { createOrder, isApiConfigured, syncCart, fetchCustomerOrders } from "./api/api.js";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import AuthPage from "./components/AuthPage.jsx";
+import ResetPassword from "./components/ResetPassword.jsx";
 import AdminApp from "./components/AdminApp.jsx";
 import {
   AccountPage,
@@ -50,7 +53,23 @@ function currentRoute() {
 }
 
 function Storefront() {
-  const { cartCount, wishlist, addToCart, updateQuantity, saveOrder, orders } = useStore();
+  const { products, productsLoading, cart, cartCount, wishlist, addToCart, updateQuantity, saveOrder, orders, replaceOrders, replaceCart, toast } = useStore();
+  const [customer, setCustomer] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("nova_customer")) || null;
+    } catch {
+      return null;
+    }
+  });
+  
+  const handleLogout = () => {
+    localStorage.removeItem("nova_customer_token");
+    localStorage.removeItem("nova_customer");
+    setCustomer(null);
+    replaceOrders([]);
+    replaceCart([]);
+  };
+
   const [route, setRoute] = useState(currentRoute);
   const [showPagePreloader] = useState(() => currentRoute() === "");
   const routeRef = useRef(route);
@@ -64,6 +83,28 @@ function Storefront() {
   const [lookOpen, setLookOpen] = useState(false);
   const [filmOpen, setFilmOpen] = useState(false);
   const [latestOrder, setLatestOrder] = useState(null);
+
+  useEffect(() => {
+    if (customer) {
+      const token = localStorage.getItem("nova_customer_token");
+      if (token) {
+        syncCart(token, cart).catch(console.error);
+      }
+    }
+  }, [cart, customer]);
+
+  useEffect(() => {
+    if (customer) {
+      const token = localStorage.getItem("nova_customer_token");
+      if (token) {
+        fetchCustomerOrders(token)
+          .then(orders => {
+            if (Array.isArray(orders)) replaceOrders(orders);
+          })
+          .catch(console.error);
+      }
+    }
+  }, [customer]);
 
   useEffect(() => {
     const previousRestoration = window.history.scrollRestoration;
@@ -123,7 +164,7 @@ function Storefront() {
   const query = params.get("q") || "";
   const sortBy = params.get("sort") || "featured";
   const productSlug = pathname.startsWith("product/") ? pathname.slice("product/".length) : "";
-  const product = shopProducts.find((item) => item.slug === productSlug);
+  const product = products.find((item) => item.slug === productSlug);
   const collectionSlug = pathname.startsWith("collections/") ? pathname.slice("collections/".length) : "";
   const collection = collections.find((item) => item.slug === collectionSlug);
   const articleSlug = pathname.startsWith("journal/") ? pathname.slice("journal/".length) : "";
@@ -135,6 +176,19 @@ function Storefront() {
     const frame = window.requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: "smooth" }));
     return () => window.cancelAnimationFrame(frame);
   }, [pathname, queryString]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-revealed");
+        }
+      });
+    }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
+    
+    document.querySelectorAll(".reveal-up").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [pathname]);
 
   const openQuickView = (item) => {
     if (item?.look) {
@@ -183,23 +237,31 @@ function Storefront() {
   return (
     <>
       {showPagePreloader && <PagePreloader />}
-      <AnnouncementBar />
-      <Navbar
-        route={route}
-        transparent={pathname === ""}
-        cartCount={cartCount}
-        wishlistCount={wishlist.length}
-        onNavigate={navigate}
-        onSearch={() => setSearchOpen(true)}
-        onCart={() => setCartOpen(true)}
-        onWishlist={() => navigate("wishlist")}
-      />
-      {pathname === "" ? (
+      {pathname !== "auth" && (
+        <>
+          <AnnouncementBar />
+          <Navbar
+            customer={customer}
+            onLogout={handleLogout}
+            route={route}
+            transparent={pathname === ""}
+            cartCount={cartCount}
+            wishlistCount={wishlist.length}
+            onNavigate={navigate}
+            onSearch={() => setSearchOpen(true)}
+            onCart={() => setCartOpen(true)}
+            onWishlist={() => navigate("wishlist")}
+          />
+        </>
+      )}
+      <ErrorBoundary>
+        {pathname === "" ? (
         <main id="top" className="home-page">
           <Hero onWatchVideo={() => setFilmOpen(true)} />
           <FeatureBar />
           <NewArrivals
-            products={shopProducts.filter((item) => item.newArrival || item.featured).slice(0, 5)}
+            products={products.filter((item) => item.newArrival || item.featured).slice(0, 5)}
+            loading={productsLoading}
             onQuickView={openQuickView}
             onViewAll={() => navigate("shop?edit=new-arrivals")}
           />
@@ -214,6 +276,10 @@ function Storefront() {
         <ShopPage category="All" query={query} sortBy={sortBy} routePath={pathname} queryString={queryString} onQuickView={openQuickView} />
       ) : pathname === "shop" || pathname === "sale" ? (
         <ShopPage category={category} query={query} sortBy={sortBy} routePath={pathname} queryString={queryString} onQuickView={openQuickView} />
+      ) : pathname === "auth" ? (
+        <AuthPage onNavigate={navigate} onLogin={setCustomer} />
+      ) : pathname === "reset-password" ? (
+        <ResetPassword onNavigate={navigate} />
       ) : pathname === "wishlist" ? (
         <WishlistPage onQuickView={openQuickView} onNavigate={navigate} />
       ) : pathname === "cart" ? (
@@ -267,7 +333,9 @@ function Storefront() {
           onNavigate={navigate}
         />
       )}
-      <Footer />
+      </ErrorBoundary>
+      {pathname !== "auth" && <Footer />}
+
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} onNavigate={navigate} />
       <SearchOverlay
         open={searchOpen}
@@ -295,7 +363,19 @@ function Storefront() {
       />
       <ShopTheLook open={lookOpen} onClose={() => setLookOpen(false)} onOpenCart={() => setCartOpen(true)} />
       <FilmModal open={filmOpen} onClose={() => setFilmOpen(false)} />
+      <GlobalToast toast={toast} />
     </>
+  );
+}
+
+function GlobalToast({ toast }) {
+  if (!toast) return null;
+  return (
+    <div className="nova-toast-wrapper">
+      <div key={toast.id} className={`nova-toast nova-toast--${toast.type}`}>
+        {toast.message}
+      </div>
+    </div>
   );
 }
 

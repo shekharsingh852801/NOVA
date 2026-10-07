@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { shopProducts } from "../data/products.js";
+
 import { useStore } from "../context/StoreContext.jsx";
 import { readStoredJson, writeStoredJson } from "../utils/storage.js";
 import { useDialogFocus } from "../utils/useDialogFocus.js";
 import { BackInStockForm, ProductReviewPanel } from "./CommerceExtras.jsx";
 import { isApiConfigured, trackOrder } from "../api/api.js";
-import { ArrowIcon, BagIcon, CloseIcon, HeartIcon, PlusIcon, StarIcon } from "./Icons.jsx";
+import { ArrowIcon, BagIcon, CloseIcon, HeartIcon, PlusIcon, StarIcon, BoxIcon, SearchIcon } from "./Icons.jsx";
 
 const money = (value) => `$${Number(value || 0).toFixed(2)}`;
 function readPreferredSize() {
@@ -34,8 +34,16 @@ const collections = [
 ];
 
 function productBadge(product) {
-  if (product.compareAtPrice > product.price) return "Sale";
-  if (product.newArrival) return "New";
+  if (product.compareAtPrice > product.price) {
+    const discount = Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100);
+    return `${discount}% OFF`;
+  }
+  if (product.createdAt) {
+    const daysSince = (new Date() - new Date(product.createdAt)) / (1000 * 60 * 60 * 24);
+    if (daysSince <= 14) return "New";
+  } else if (product.newArrival) {
+    return "New";
+  }
   if (product.bestSeller) return "Bestseller";
   if (product.trending) return "Trending";
   return "";
@@ -128,7 +136,27 @@ function ProductCard({ product, onQuickView, variant = "default" }) {
   );
 }
 
-export function ProductGrid({ products, onQuickView, variant = "default" }) {
+function ProductSkeleton({ variant }) {
+  return (
+    <article className={`store-product-card store-product-skeleton ${variant === "home" ? "store-product-card--home" : ""}`}>
+      <div className="store-product-card__media skeleton-box" />
+      <div className="store-product-card__details">
+        <div className="store-product-card__line">
+          <div className="skeleton-line" style={{ width: "70%" }} />
+          <div className="skeleton-line" style={{ width: "20%" }} />
+        </div>
+        <div className="store-product-card__meta">
+          <div className="skeleton-line" style={{ width: "40%" }} />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+export function ProductGrid({ products, loading, skeletonCount = 5, onQuickView, variant = "default" }) {
+  if (loading) {
+    return <div className={`store-product-grid ${variant === "home" ? "product-grid--home" : ""}`}>{Array.from({ length: skeletonCount }).map((_, i) => <ProductSkeleton key={i} variant={variant} />)}</div>;
+  }
   return <div className={`store-product-grid ${variant === "home" ? "product-grid--home" : ""}`}>{products.map((product) => <ProductCard key={product.id} product={product} onQuickView={onQuickView} variant={variant} />)}</div>;
 }
 
@@ -270,7 +298,8 @@ function ListingFilterSheet({ open, onClose, filters, setFilters, productList, s
 const sortOptions = [["featured", "Featured"], ["newest", "New arrivals"], ["popular", "Best sellers"], ["trending", "Trending"], ["rating", "Best rated"], ["price-low", "Price: low to high"], ["price-high", "Price: high to low"]];
 
 export function ShopPage({ category = "All", query = "", sortBy = "featured", routePath = "shop", queryString = "", onQuickView }) {
-  const filters = useMemo(() => readListingFilters(queryString, category, shopProducts), [queryString, category]);
+  const { products: storeProducts = [], productsLoading } = useStore();
+  const filters = useMemo(() => readListingFilters(queryString, category, storeProducts), [queryString, category, storeProducts]);
   const currentParams = new URLSearchParams(queryString);
   const edit = ["new-arrivals", "best-sellers", "trending"].includes(currentParams.get("edit")) ? currentParams.get("edit") : "";
   const requestedSort = currentParams.get("sort") || sortBy;
@@ -279,7 +308,7 @@ export function ShopPage({ category = "All", query = "", sortBy = "featured", ro
   useEscape(filterSheet, () => setFilterSheet(false));
   const updateFilters = (nextFilters) => writeListingUrl(routePath, queryString, nextFilters, sort);
   const updateSort = (nextSort) => writeListingUrl(routePath, queryString, filters, nextSort);
-  const products = useMemo(() => filterAndSortProducts(shopProducts, filters, sort, query, edit), [filters, query, sort, edit]);
+  const products = useMemo(() => filterAndSortProducts(storeProducts, filters, sort, query, edit), [filters, query, sort, edit]);
   const activeFilterCount = Object.entries(filters).filter(([key, value]) => key === "available" ? value : value !== "All").length;
   const clearCategory = routePath === "sale" ? "Sale" : "All";
   const clearFilters = () => updateFilters({ category: clearCategory, size: "All", color: "All", price: "All", fit: "All", material: "All", available: false, rating: "All" });
@@ -301,15 +330,15 @@ export function ShopPage({ category = "All", query = "", sortBy = "featured", ro
         </div>
       </div>
       <ActiveFilterChips filters={filters} onRemove={removeFilter} onClear={clearFilters} />
-      <div className="shop-filters shop-desktop-filter"><ShopFilters filters={filters} setFilters={updateFilters} productList={shopProducts} /></div>
-      {products.length ? <ProductGrid products={products} onQuickView={onQuickView} /> : <div className="shop-empty-state"><EmptyState title="No products found" copy="Try adjusting your filters or exploring another collection." action="Clear filters" onClick={clearFilters} /><a className="text-action" href="#/shop?edit=new-arrivals">Explore New Arrivals <ArrowIcon /></a></div>}
-      <ListingFilterSheet open={filterSheet} onClose={() => setFilterSheet(false)} filters={filters} setFilters={updateFilters} productList={shopProducts} sort={sort} setSort={updateSort} resultCount={products.length} onClear={clearFilters} />
+      <div className="shop-filters shop-desktop-filter"><ShopFilters filters={filters} setFilters={updateFilters} productList={storeProducts} /></div>
+      {productsLoading || products.length ? <ProductGrid products={products} loading={productsLoading} skeletonCount={8} onQuickView={onQuickView} /> : <div className="shop-empty-state"><EmptyState icon={SearchIcon} title="No products found" copy="Try adjusting your filters or exploring another collection." action="Clear filters" onClick={clearFilters} /><a className="text-action" href="#/shop?edit=new-arrivals">Explore New Arrivals <ArrowIcon /></a></div>}
+      <ListingFilterSheet open={filterSheet} onClose={() => setFilterSheet(false)} filters={filters} setFilters={updateFilters} productList={storeProducts} sort={sort} setSort={updateSort} resultCount={products.length} onClear={clearFilters} />
     </main>
   );
 }
 
 export function ProductPage({ product, onQuickView, onFindSize, onBuyNow, onOpenCart, recommendedSize }) {
-  const { wishlist, toggleWishlist, recentlyViewed, recordView, addToCart } = useStore();
+  const { wishlist, toggleWishlist, recentlyViewed, recordView, addToCart, products: storeProducts = [], productsLoading } = useStore();
   const preferredSize = readPreferredSize();
   const [size, setSize] = useState(product.sizes.includes(preferredSize) ? preferredSize : product.sizes[0]);
   const [colorName, setColorName] = useState(product.colors[0].name);
@@ -322,8 +351,8 @@ export function ProductPage({ product, onQuickView, onFindSize, onBuyNow, onOpen
     addToCart(product, size, quantity, colorName);
     onOpenCart();
   };
-  const matching = shopProducts.filter((item) => ["p3", "p5", "p6"].includes(item.id) && item.id !== product.id).slice(0, 3);
-  const recently = recentlyViewed.map((id) => shopProducts.find((item) => item.id === id)).filter((item) => item && item.id !== product.id).slice(0, 4);
+  const matching = storeProducts.filter((item) => ["p3", "p5", "p6"].includes(item.id) && item.id !== product.id).slice(0, 3);
+  const recently = recentlyViewed.map((id) => storeProducts.find((item) => item.id === id)).filter((item) => item && item.id !== product.id).slice(0, 4);
   return (
     <main className="commerce-page product-page">
       <div className="product-detail">
@@ -345,9 +374,9 @@ export function ProductPage({ product, onQuickView, onFindSize, onBuyNow, onOpen
           <div className="product-accordions"><details open><summary>Details</summary><p>{product.description}</p><p>{product.material} · {product.fit}</p></details><details><summary>Material & care</summary><p>{product.material}. {product.care}</p></details><details><summary>Shipping & returns</summary><p>Complimentary shipping on orders over $75. Returns accepted within 30 days in original condition.</p></details></div>
         </div>
       </div>
-      <section className="look-complete"><div className="commerce-section-heading"><div><p className="eyebrow eyebrow--dark">Considered together</p><h2>Complete the look</h2></div><button className="btn btn--dark" onClick={() => { matching.forEach((item) => addToCart(item, item.sizes[0])); onOpenCart(); }}>Add all to bag <ArrowIcon /></button></div><ProductGrid products={matching} onQuickView={onQuickView} /></section>
+      <section className="look-complete"><div className="commerce-section-heading"><div><p className="eyebrow eyebrow--dark">Considered together</p><h2>Complete the look</h2></div><button className="btn btn--dark" onClick={() => { matching.forEach((item) => addToCart(item, item.sizes[0])); onOpenCart(); }}>Add all to bag <ArrowIcon /></button></div><ProductGrid products={matching} loading={productsLoading} skeletonCount={3} onQuickView={onQuickView} /></section>
       <ProductReviewPanel product={product} />
-      {recently.length > 0 && <section className="look-complete"><div className="commerce-section-heading"><div><p className="eyebrow eyebrow--dark">A second look</p><h2>Recently viewed</h2></div></div><ProductGrid products={recently} onQuickView={onQuickView} /></section>}
+      {productsLoading || recently.length > 0 ? <section className="look-complete"><div className="commerce-section-heading"><div><p className="eyebrow eyebrow--dark">A second look</p><h2>Recently viewed</h2></div></div><ProductGrid products={recently} loading={productsLoading} skeletonCount={4} onQuickView={onQuickView} /></section> : null}
     </main>
   );
 }
@@ -386,9 +415,9 @@ export function QuickView({ product, onClose, onAdd, onNotify, recommendedSize }
 }
 
 export function CartDrawer({ open, onClose, onNavigate }) {
-  const { cart, updateQuantity } = useStore();
+  const { cart, updateQuantity, products: storeProducts = [] } = useStore();
   const dialogRef = useDialogFocus(open, onClose);
-  const items = cart.map((line) => ({ ...line, product: shopProducts.find((product) => product.id === line.id) })).filter((line) => line.product);
+  const items = cart.map((line) => ({ ...line, product: storeProducts.find((product) => product.id === line.id) })).filter((line) => line.product);
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const remaining = Math.max(0, 75 - subtotal);
   if (!open) return null;
@@ -400,7 +429,7 @@ export function CartDrawer({ open, onClose, onNavigate }) {
           <div className="shipping-progress"><p>{remaining ? `${money(remaining)} away from complimentary shipping` : "Complimentary shipping unlocked"}</p><span><i style={{ width: `${Math.min(100, (subtotal / 75) * 100)}%` }} /></span></div>
           <div className="cart-drawer__items">{items.map(({ product, size, color, quantity }) => <CartLine key={`${product.id}-${size}-${color}`} product={product} size={size} color={color} quantity={quantity} onQuantity={(next) => updateQuantity(product.id, size, next, color)} compact />)}</div>
           <div className="cart-drawer__bottom"><div className="cart-subtotal"><span>Subtotal</span><strong>{money(subtotal)}</strong></div><p>Shipping and taxes calculated at checkout.</p><button className="btn btn--dark cart-checkout" onClick={() => { onClose(); onNavigate("checkout"); }}>Continue to checkout <ArrowIcon /></button><button className="text-action cart-view" onClick={() => { onClose(); onNavigate("cart"); }}>View bag</button></div>
-        </> : <EmptyState title="Your bag is at rest" copy="Discover pieces made to move with you." action="Explore the collection" onClick={() => { onClose(); onNavigate("shop"); }} />}
+        </> : <EmptyState icon={BagIcon} title="Your bag is at rest" copy="Discover pieces made to move with you." action="Explore the collection" onClick={() => { onClose(); onNavigate("shop"); }} />}
       </aside>
     </div>
   );
@@ -411,19 +440,20 @@ function CartLine({ product, size, color = product.colors[0].name, quantity, onQ
 }
 
 export function CartPage({ onNavigate }) {
-  const { cart, updateQuantity } = useStore();
-  const items = cart.map((line) => ({ ...line, product: shopProducts.find((product) => product.id === line.id) })).filter((line) => line.product);
+  const { cart, updateQuantity, products: storeProducts = [] } = useStore();
+  const items = cart.map((line) => ({ ...line, product: storeProducts.find((product) => product.id === line.id) })).filter((line) => line.product);
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  return <main className="commerce-page cart-page"><p className="eyebrow eyebrow--dark">NOVA / 01</p><h1>Your bag</h1>{items.length ? <div className="cart-page__layout"><section>{items.map(({ product, size, color, quantity }) => <div className="cart-page__line" key={`${product.id}-${size}-${color}`}><CartLine product={product} size={size} color={color} quantity={quantity} onQuantity={(next) => updateQuantity(product.id, size, next, color)} /><button className="text-action" onClick={() => updateQuantity(product.id, size, 0, color)}>Remove</button></div>)}</section><aside className="cart-summary"><p className="eyebrow eyebrow--dark">Order summary</p><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Shipping</span><span>{subtotal >= 75 ? "Complimentary" : "Calculated at checkout"}</span></div><button className="btn btn--dark" onClick={() => onNavigate("checkout")}>Continue to checkout <ArrowIcon /></button><a href="#/shop" className="text-action">Continue shopping</a></aside></div> : <EmptyState title="Nothing in your bag yet." copy="Discover pieces worth keeping." action="Explore new arrivals" onClick={() => onNavigate("shop?edit=new-arrivals")} />}</main>;
+  return <main className="commerce-page cart-page"><p className="eyebrow eyebrow--dark">NOVA / 01</p><h1>Your bag</h1>{items.length ? <div className="cart-page__layout"><section>{items.map(({ product, size, color, quantity }) => <div className="cart-page__line" key={`${product.id}-${size}-${color}`}><CartLine product={product} size={size} color={color} quantity={quantity} onQuantity={(next) => updateQuantity(product.id, size, next, color)} /><button className="text-action" onClick={() => updateQuantity(product.id, size, 0, color)}>Remove</button></div>)}</section><aside className="cart-summary"><p className="eyebrow eyebrow--dark">Order summary</p><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Shipping</span><span>{subtotal >= 75 ? "Complimentary" : "Calculated at checkout"}</span></div><button className="btn btn--dark" onClick={() => onNavigate("checkout")}>Continue to checkout <ArrowIcon /></button><a href="#/shop" className="text-action">Continue shopping</a></aside></div> : <EmptyState icon={BagIcon} title="Nothing in your bag yet." copy="Discover pieces worth keeping." action="Explore new arrivals" onClick={() => onNavigate("shop?edit=new-arrivals")} />}</main>;
 }
 
 export function WishlistPage({ onQuickView, onNavigate }) {
-  const { wishlist, toggleWishlist, addToCart } = useStore();
-  const items = wishlist.map((id) => shopProducts.find((product) => product.id === id)).filter(Boolean);
-  return <main className="commerce-page wishlist-page"><p className="eyebrow eyebrow--dark">A personal edit</p><h1>Saved pieces</h1>{items.length ? <div className="wishlist-grid">{items.map((product) => <article className="wishlist-item" key={product.id}><ProductCard product={product} onQuickView={onQuickView} /><div className="wishlist-item__actions"><button className="btn btn--dark" onClick={() => { addToCart(product, product.sizes[0]); toggleWishlist(product.id); }}>Move to bag</button><button className="text-action" onClick={() => toggleWishlist(product.id)}>Remove</button></div></article>)}</div> : <EmptyState title="Nothing saved yet." copy="Discover pieces worth keeping." action="Explore new arrivals" onClick={() => onNavigate("shop?edit=new-arrivals")} />}</main>;
+  const { wishlist, toggleWishlist, addToCart, products: storeProducts = [] } = useStore();
+  const items = wishlist.map((id) => storeProducts.find((product) => product.id === id)).filter(Boolean);
+  return <main className="commerce-page wishlist-page"><p className="eyebrow eyebrow--dark">A personal edit</p><h1>Saved pieces</h1>{items.length ? <div className="wishlist-grid">{items.map((product) => <article className="wishlist-item" key={product.id}><ProductCard product={product} onQuickView={onQuickView} /><div className="wishlist-item__actions"><button className="btn btn--dark" onClick={() => { addToCart(product, product.sizes[0]); toggleWishlist(product.id); }}>Move to bag</button><button className="text-action" onClick={() => toggleWishlist(product.id)}>Remove</button></div></article>)}</div> : <EmptyState icon={HeartIcon} title="Nothing saved yet." copy="Discover pieces worth keeping." action="Explore new arrivals" onClick={() => onNavigate("shop?edit=new-arrivals")} />}</main>;
 }
 
 export function SearchOverlay({ open, initialQuery = "", onClose, onSubmit }) {
+  const { products: storeProducts = [] } = useStore();
   const [query, setQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
   const [recent, setRecent] = useState(() => readStoredJson("nova-searches", []));
@@ -450,7 +480,7 @@ export function SearchOverlay({ open, initialQuery = "", onClose, onSubmit }) {
 
   if (!open) return null;
   const normalized = debouncedQuery.toLowerCase();
-  const foundProducts = normalized ? shopProducts.filter((product) => `${product.name} ${product.category} ${product.subcategory} ${product.tags.join(" ")} ${product.material}`.toLowerCase().includes(normalized)).slice(0, 5) : [];
+  const foundProducts = normalized ? storeProducts.filter((product) => `${product.name} ${product.category} ${product.subcategory} ${product.tags.join(" ")} ${product.material}`.toLowerCase().includes(normalized)).slice(0, 5) : [];
   const foundCollections = normalized ? collections.filter((item) => `${item.title} ${item.story}`.toLowerCase().includes(normalized)) : [];
   const foundArticles = normalized ? articles.filter((item) => `${item.title} ${item.category} ${item.summary}`.toLowerCase().includes(normalized)) : [];
   const hasResults = foundProducts.length + foundCollections.length + foundArticles.length > 0;
@@ -539,21 +569,32 @@ export function SizeFinder({ open, onClose, onSelect }) {
 }
 
 export function ShopTheLook({ open, onClose, onOpenCart }) {
-  const { addToCart } = useStore();
+  const { addToCart, products } = useStore();
   useEscape(open, onClose);
-  const lookItems = [shopProducts[0], shopProducts[2], shopProducts[5], shopProducts[7]];
-  const [sizes, setSizes] = useState(() => Object.fromEntries(lookItems.map((item) => [item.id, item.sizes[0]])));
+  
+  const [sizes, setSizes] = useState({});
+  
+  useEffect(() => {
+    if (products && products.length >= 8) {
+      const lookItems = [products[0], products[2], products[5], products[7]];
+      setSizes(Object.fromEntries(lookItems.map((item) => [item.id, item.sizes[0]])));
+    }
+  }, [products]);
+
+  if (!products || products.length < 8) return null;
   if (!open) return null;
-  const addAll = () => { lookItems.forEach((item) => addToCart(item, sizes[item.id])); onClose(); onOpenCart(); };
-  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="look-modal" role="dialog" aria-modal="true" aria-label="Shop the look"><button className="icon-close look-modal__close" onClick={onClose} aria-label="Close look"><CloseIcon /></button><div className="look-modal__image"><img src={shopProducts[0].images[1]} alt="NOVA layered winter look" /><span>Winter '26 / Look 04</span></div><div className="look-modal__content"><p className="eyebrow eyebrow--dark">The complete edit</p><h2>Shop this look</h2><p className="muted-copy">Four considered pieces, worn together or your own way.</p><div className="look-modal__items">{lookItems.map((product) => <article key={product.id}><img src={product.images[0]} alt={product.name} /><div><a href={`#/product/${product.slug}`} onClick={onClose}>{product.name}</a><span>{money(product.price)}</span><select aria-label={`Size for ${product.name}`} value={sizes[product.id]} onChange={(event) => setSizes({ ...sizes, [product.id]: event.target.value })}>{product.sizes.map((size) => <option key={size}>{size}</option>)}</select></div><button className="look-modal__add" onClick={() => addToCart(product, sizes[product.id])} aria-label={`Add ${product.name} to bag`}><PlusIcon /></button></article>)}</div><button className="btn btn--dark" onClick={addAll}>Add entire look · {money(lookItems.reduce((sum, item) => sum + item.price, 0))} <ArrowIcon /></button></div></section></div>;
+
+  const lookItems = [products[0], products[2], products[5], products[7]];
+  const addAll = () => { lookItems.forEach((item) => addToCart(item, sizes[item.id] || item.sizes[0])); onClose(); onOpenCart(); };
+  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="look-modal" role="dialog" aria-modal="true" aria-label="Shop the look"><button className="icon-close look-modal__close" onClick={onClose} aria-label="Close look"><CloseIcon /></button><div className="look-modal__image"><img src={products[0].images[1]} alt="NOVA layered winter look" /><span>Winter '26 / Look 04</span></div><div className="look-modal__content"><p className="eyebrow eyebrow--dark">The complete edit</p><h2>Shop this look</h2><p className="muted-copy">Four considered pieces, worn together or your own way.</p><div className="look-modal__items">{lookItems.map((product) => <article key={product.id}><img src={product.images[0]} alt={product.name} /><div><a href={`#/product/${product.slug}`} onClick={onClose}>{product.name}</a><span>{money(product.price)}</span><select aria-label={`Size for ${product.name}`} value={sizes[product.id] || product.sizes[0]} onChange={(event) => setSizes({ ...sizes, [product.id]: event.target.value })}>{product.sizes.map((size) => <option key={size}>{size}</option>)}</select></div><button className="look-modal__add" onClick={() => addToCart(product, sizes[product.id] || product.sizes[0])} aria-label={`Add ${product.name} to bag`}><PlusIcon /></button></article>)}</div><button className="btn btn--dark" onClick={addAll}>Add entire look · {money(lookItems.reduce((sum, item) => sum + item.price, 0))} <ArrowIcon /></button></div></section></div>;
 }
 
 function LegacyCheckoutPage({ onPlaceOrder }) {
-  const { cart } = useStore();
+  const { cart, products: storeProducts = [] } = useStore();
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ name: "", email: "", phone: "", address: "", city: "", state: "", postal: "", payment: "Cash on delivery" });
-  const lines = cart.map((line) => ({ ...line, product: shopProducts.find((product) => product.id === line.id) })).filter((line) => line.product);
+  const lines = cart.map((line) => ({ ...line, product: storeProducts.find((product) => product.id === line.id) })).filter((line) => line.product);
   const subtotal = lines.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const shipping = subtotal >= 75 || subtotal === 0 ? 0 : 8;
   const update = (event) => setForm({ ...form, [event.target.name]: event.target.value });
@@ -606,11 +647,12 @@ export function CollectionsPage() {
 }
 
 export function CollectionDetail({ collection, routePath, queryString = "", onQuickView }) {
+  const { products: storeProducts = [], productsLoading } = useStore();
   const products = collection.slug === "everyday-uniform"
-    ? shopProducts.filter((product) => product.bestSeller)
+    ? storeProducts.filter((product) => product.bestSeller)
     : collection.slug === "soft-structure"
-      ? shopProducts.filter((product) => product.category === "Women")
-      : shopProducts.filter((product) => product.featured).slice(0, 6);
+      ? storeProducts.filter((product) => product.category === "Women")
+      : storeProducts.filter((product) => product.featured).slice(0, 6);
   const filters = useMemo(() => readListingFilters(queryString, "All", products), [queryString, products]);
   const currentParams = new URLSearchParams(queryString);
   const requestedSort = currentParams.get("sort") || "featured";
@@ -633,7 +675,7 @@ export function CollectionDetail({ collection, routePath, queryString = "", onQu
       <div className="shop-toolbar"><span>{filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"}</span><div className="shop-toolbar__actions"><button type="button" className="text-action shop-mobile-filter" onClick={() => setFilterSheet(true)}>Filter{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button><label className="shop-sort">Sort by<select value={sort} onChange={(event) => updateSort(event.target.value)}>{sortOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div></div>
       <ActiveFilterChips filters={filters} onRemove={removeFilter} onClear={clearFilters} />
       <div className="shop-filters shop-desktop-filter"><ShopFilters filters={filters} setFilters={updateFilters} productList={products} /></div>
-      {filteredProducts.length ? <ProductGrid products={filteredProducts} onQuickView={onQuickView} /> : <div className="shop-empty-state"><EmptyState title="No products found" copy="Try adjusting the filters or exploring another edit." action="Clear filters" onClick={clearFilters} /></div>}
+      {productsLoading || filteredProducts.length ? <ProductGrid products={filteredProducts} loading={productsLoading} skeletonCount={4} onQuickView={onQuickView} /> : <div className="shop-empty-state"><EmptyState icon={SearchIcon} title="No products found" copy="Try adjusting the filters or exploring another edit." action="Clear filters" onClick={clearFilters} /></div>}
       <ListingFilterSheet open={filterSheet} onClose={() => setFilterSheet(false)} filters={filters} setFilters={updateFilters} productList={products} sort={sort} setSort={updateSort} resultCount={filteredProducts.length} onClear={clearFilters} />
     </section>
   </main>;
@@ -677,8 +719,15 @@ export function PolicyPage({ slug }) {
   return <main className="commerce-page policy-page"><p className="eyebrow eyebrow--dark">{policy.eyebrow}</p><h1>{policy.title}</h1><p className="page-lede">Clear information, with no surprises.</p><div className="policy-content">{policy.sections.map(([heading, copy]) => <section key={heading}><h2>{heading}</h2><p>{slug === "cookies" && heading === "Optional analytics" ? `Optional analytics are ${analytics ? "on" : "off"} in this storefront preview.` : copy}</p></section>)}{slug === "cookies" && <section className="cookie-setting"><div><h2>Optional analytics</h2><p>Allow anonymous usage measurement.</p></div><label><span className="sr-only">Allow optional analytics</span><input type="checkbox" checked={analytics} onChange={(event) => { setAnalytics(event.target.checked); try { localStorage.setItem("nova-analytics", event.target.checked ? "on" : "off"); } catch { /* Browser storage can be unavailable. */ } }} /></label></section>}</div><a className="text-action" href="#/contact">Questions? Contact NOVA <ArrowIcon /></a></main>;
 }
 
-function EmptyState({ title, copy, action, onClick }) {
-  return <div className="empty-state"><span className="empty-state__rule" /><h2>{title}</h2><p>{copy}</p>{action && <button className="text-action" onClick={onClick}>{action} <ArrowIcon /></button>}</div>;
+function EmptyState({ title, copy, action, onClick, icon: Icon = BoxIcon }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-state__icon"><Icon /></div>
+      <h2>{title}</h2>
+      <p>{copy}</p>
+      {action && <button className="btn btn--dark" onClick={onClick}>{action} <ArrowIcon /></button>}
+    </div>
+  );
 }
 
 export { money, collections, articles };
