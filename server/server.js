@@ -35,3 +35,4 @@ startServer().catch((error) => {
   console.error("NOVA API startup failed:", error.message);
   process.exitCode = 1;
 });
+// Trigger restart

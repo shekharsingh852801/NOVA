@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { Product } from "../models/Product.js";
+import { Review } from "../models/Review.js";
 import { authenticateAdmin } from "../middleware/auth.js";
+import { authenticateCustomer } from "../middleware/customerAuth.js";
 
 const router = Router();
 const COLOR_VALUES = {
@@ -63,7 +65,15 @@ router.get("/", async (req, res) => {
   if (newArrivals === "true") query.is_new_arrival = 1;
 
   try {
-    const rows = await Product.find(query).sort({ sort_order: 1, created_at: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const skip = (page - 1) * limit;
+
+    const rows = await Product.find(query).sort({ sort_order: 1, created_at: -1 }).skip(skip).limit(limit);
+    const total = await Product.countDocuments(query);
+    
+    res.set("X-Total-Count", total);
+    res.set("Access-Control-Expose-Headers", "X-Total-Count");
     res.json(rows.map(serializeProduct));
   } catch (err) {
     console.error(err);
@@ -76,7 +86,50 @@ router.get("/:id", async (req, res) => {
   try {
     const product = await Product.findOne({ slug: req.params.id });
     if (!product) return res.status(404).json({ message: "Product not found" });
-    res.json(serializeProduct(product));
+    
+    // Fetch approved reviews
+    const reviews = await Review.find({ product_id: product._id, status: 'approved' }).sort({ created_at: -1 });
+    const serializedProduct = serializeProduct(product);
+    serializedProduct.userReviews = reviews;
+    
+    res.json(serializedProduct);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
+// POST /api/products/:id/reviews
+router.post("/:id/reviews", authenticateCustomer, async (req, res) => {
+  try {
+    const product = await Product.findOne({ slug: req.params.id });
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const { rating, comment } = req.body;
+    if (!rating || rating < 1 || rating > 5) return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    if (!comment || !comment.trim()) return res.status(400).json({ message: "Comment is required" });
+
+    const review = new Review({
+      product_id: product._id,
+      product_slug: product.slug,
+      customer_id: req.customer._id,
+      customer_name: req.customer.name,
+      rating: Number(rating),
+      comment: comment.trim(),
+      status: 'approved' // Auto-approve for MVP
+    });
+
+    await review.save();
+
+    // Update product rating average
+    const allReviews = await Review.find({ product_id: product._id, status: 'approved' });
+    const newAverage = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+    
+    product.reviews = allReviews.length;
+    product.rating = Math.round(newAverage * 10) / 10;
+    await product.save();
+
+    res.status(201).json({ message: "Review added successfully", review });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server Error" });

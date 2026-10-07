@@ -17,33 +17,73 @@ function conflict(message) {
   return Object.assign(new Error(message), { status: 409 });
 }
 
-export function validateOrderPayload(body) {
-  const customer = body?.customer;
-  const address = body?.shippingAddress;
-  if (!customer || typeof customer.name !== "string" || !customer.name.trim()) return "Customer name is required";
-  if (typeof customer.email !== "string" || !EMAIL_RE.test(customer.email.trim())) return "A valid customer email is required";
-  if (typeof customer.phone !== "string" || !customer.phone.trim()) return "Customer phone is required";
-  if (!address || ["address", "city", "state", "postal"].some((field) => typeof address[field] !== "string" || !address[field].trim())) {
-    return "A complete shipping address is required";
-  }
-  if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 20) return "Order must contain between 1 and 20 items";
-  if (!PAYMENT_METHODS.has(body.paymentMethod)) return "Unsupported payment method";
+import { z } from "zod";
 
-  for (const item of body.items) {
-    if (typeof item.slug !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.slug)) return "Invalid product selection";
-    if (typeof item.size !== "string" || !item.size.trim() || typeof item.color !== "string" || !item.color.trim()) return "Each item requires a size and colour";
-    if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) return "Item quantity must be between 1 and 10";
-  }
+const orderSchema = z.object({
+  customer: z.object({
+    name: z.string().trim().min(1, "Customer name is required"),
+    email: z.string().trim().email("A valid customer email is required"),
+    phone: z.string().trim().min(1, "Customer phone is required"),
+  }),
+  shippingAddress: z.object({
+    address: z.string().trim().min(1, "Address is required"),
+    city: z.string().trim().min(1, "City is required"),
+    state: z.string().trim().min(1, "State is required"),
+    postal: z.string().trim().min(1, "Postal code is required"),
+  }),
+  paymentMethod: z.enum(["cash_on_delivery", "pay_on_delivery"], {
+    errorMap: () => ({ message: "Unsupported payment method" })
+  }),
+  items: z.array(z.object({
+    slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Invalid product selection"),
+    size: z.string().trim().min(1, "Size is required"),
+    color: z.string().trim().min(1, "Color is required"),
+    quantity: z.number().int().min(1).max(10, "Item quantity must be between 1 and 10"),
+  })).min(1, "Order must contain at least 1 item").max(20, "Order must contain no more than 20 items"),
+});
 
-  return null;
-}
+// Admin Analytics Overview
+router.get("/overview", authenticateAdmin, async (req, res, next) => {
+  try {
+    const totalOrders = await Order.countDocuments();
+    
+    const revenueResult = await Order.aggregate([
+      { $group: { _id: null, totalRevenue: { $sum: "$total" } } }
+    ]);
+    
+    const statusCountsResult = await Order.aggregate([
+      { $group: { _id: "$status", count: { $sum: 1 } } }
+    ]);
+    const orderStatusCounts = statusCountsResult.map(c => ({ name: c._id || "Confirmed", value: c.count }));
+
+    const recentOrders = await Order.find().sort({ created_at: -1 }).limit(10);
+    const totalProducts = await Product.countDocuments();
+
+    const lowStockProducts = await Product.find({ stock: { $lt: 10 } })
+      .limit(5)
+      .select('name stock _id slug');
+
+    res.json({
+      totalOrders,
+      totalRevenue: revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0,
+      recentOrders,
+      totalProducts,
+      orderStatusCounts,
+      lowStockProducts
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.post("/", async (req, res, next) => {
-  const validationError = validateOrderPayload(req.body);
-  if (validationError) return res.status(400).json({ message: validationError });
+  const result = orderSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({ message: result.error.errors[0].message });
+  }
+  const body = result.data; // Zod validates and strips/normalizes the body based on schema!
 
   const orderNumber = `NV-${randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`;
-  const body = req.body;
   const session = await mongoose.startSession();
 
   try {
@@ -63,11 +103,18 @@ router.post("/", async (req, res, next) => {
       }
 
       if (product.stock < item.quantity) {
-        throw conflict(`${product.name} no longer has enough stock`);
+        throw Object.assign(new Error(`${product.name} no longer has enough stock`), { status: 409 });
       }
 
-      product.stock -= item.quantity;
-      await product.save({ session });
+      const updatedProduct = await Product.findOneAndUpdate(
+        { _id: product._id, stock: { $gte: item.quantity } },
+        { $inc: { stock: -item.quantity } },
+        { session, new: true }
+      );
+
+      if (!updatedProduct) {
+        throw Object.assign(new Error(`${product.name} no longer has enough stock`), { status: 409 });
+      }
 
       const lineTotal = Math.round(product.price * item.quantity * 100) / 100;
       subtotal += lineTotal;
@@ -115,6 +162,11 @@ router.post("/", async (req, res, next) => {
         createdAt: newOrder.created_at,
       },
     });
+
+    // Send confirmation email asynchronously
+    import("../utils/email.js")
+      .then(({ sendOrderConfirmation }) => sendOrderConfirmation(newOrder, body.customer, lines))
+      .catch(console.error);
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -139,13 +191,23 @@ router.post("/track", async (req, res, next) => {
 // Admin: Get all orders
 router.get("/", authenticateAdmin, async (req, res, next) => {
   try {
-    const rows = await Order.find().sort({ created_at: -1 }).lean();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    
+    const rows = await Order.find().sort({ created_at: -1 }).skip(skip).limit(limit).lean();
+    const total = await Order.countDocuments();
+    
     const orders = rows.map(row => ({
       ...row,
       id: row._id,
       items: JSON.parse(row.items_json),
       items_json: undefined
     }));
+    // Return array with X-Total-Count header to preserve backwards compatibility
+    // with current admin UI while still enforcing a limit.
+    res.set("X-Total-Count", total);
+    res.set("Access-Control-Expose-Headers", "X-Total-Count");
     res.json(orders);
   } catch (error) {
     return next(error);

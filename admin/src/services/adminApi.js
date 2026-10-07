@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5001/api`;
 
 async function request(path, options = {}) {
   // Attach auth token if available
@@ -49,6 +49,27 @@ export const adminApi = {
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
 
+  // Media
+  uploadMedia: async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    // We can't use the standard `request` wrapper because we need to NOT set Content-Type
+    // so the browser sets it to multipart/form-data with the correct boundary.
+    const response = await fetch(`${API_URL}/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('nova_admin_token')}`
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.status}`);
+    }
+    return response.json();
+  },
+
   // Orders CRUD
   getOrders: () => request('/orders'),
   getOrder: (id) => request(`/orders/${id}`),
@@ -59,16 +80,7 @@ export const adminApi = {
   getCustomer: (email) => request(`/customers/${encodeURIComponent(email)}`),
   
   // Dashboard Overview
-  getOverview: async () => {
-    const [products, orders] = await Promise.all([
-      request('/products').catch(() => []),
-      request('/orders').catch(() => []),
-    ]);
-    return {
-      products: Array.isArray(products) ? products : [],
-      orders: Array.isArray(orders) ? orders : [],
-    };
-  },
+  getOverview: () => request('/orders/overview'),
   
   // Auth
   login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

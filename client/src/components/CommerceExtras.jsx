@@ -1,26 +1,30 @@
 import { useEffect, useState } from "react";
-import { shopProducts } from "../data/products.js";
 import { useStore } from "../context/StoreContext.jsx";
-import { readStoredJson, writeStoredJson } from "../utils/storage.js";
-import { createBackInStockRequest, createContactRequest, isApiConfigured } from "../api/api.js";
+import { createBackInStockRequest, createContactRequest, isApiConfigured, submitReview } from "../api/api.js";
 import { ArrowIcon, CloseIcon, StarIcon } from "./Icons.jsx";
 
 function readProfile() {
-  return readStoredJson("nova-profile", {});
+  const profile = readStoredJson("nova-profile", {});
+  if (profile.name) return profile;
+  const authCustomer = readStoredJson("nova_customer", null);
+  if (authCustomer) {
+    return { name: authCustomer.name, email: authCustomer.email };
+  }
+  return profile;
 }
 
 const formatPrice = (value) => `$${Number(value || 0).toFixed(2)}`;
 const money = formatPrice;
 
 export function CheckoutPage({ onPlaceOrder }) {
-  const { cart, addresses } = useStore();
+  const { cart, addresses, products } = useStore();
   const profile = readProfile();
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [placing, setPlacing] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [form, setForm] = useState({ name: profile.name || "", email: profile.email || "", phone: "", address: "", city: "", state: "", postal: "", payment: "Cash on delivery" });
-  const lines = cart.map((line) => ({ ...line, product: shopProducts.find((product) => product.id === line.id) })).filter((line) => line.product);
+  const lines = cart.map((line) => ({ ...line, product: products.find((product) => product.id === line.id) })).filter((line) => line.product);
   const subtotal = lines.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const shipping = subtotal >= 75 || subtotal === 0 ? 0 : 8;
   const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -110,6 +114,7 @@ function getTrackingSummary(order = {}) {
 }
 
 export function OrdersPage({ orders = [], onNavigate }) {
+  const { products } = useStore();
   const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
 
   return (
@@ -130,12 +135,12 @@ export function OrdersPage({ orders = [], onNavigate }) {
             {sortedOrders.map((order) => {
               const itemCount = (order.lines || []).reduce((sum, line) => sum + Number(line.quantity || 0), 0);
               const firstItem = (order.lines || [])[0];
-              const product = firstItem?.product || shopProducts.find((item) => item.id === firstItem?.id) || null;
+              const product = firstItem?.product || products.find((item) => item.id === firstItem?.id) || null;
               const tracking = getTrackingSummary(order);
 
               return (
                 <article className="account-order" key={order.id} style={{ display: "grid", gridTemplateColumns: "88px 1fr auto", gap: "18px", alignItems: "center", padding: "18px 0" }}>
-                  <img src={product?.images?.[0] || shopProducts[0].images[0]} alt={product?.name || "Order item"} style={{ width: "88px", height: "110px", objectFit: "cover" }} />
+                  <img src={product?.images?.[0] || products[0]?.images[0]} alt={product?.name || "Order item"} style={{ width: "88px", height: "110px", objectFit: "cover" }} />
                   <div style={{ display: "grid", gap: "6px" }}>
                     <strong style={{ fontSize: "12px" }}>#{order.id}</strong>
                     <span style={{ color: "var(--muted-on-light)", fontSize: "11px" }}>{formatOrderDate(order.createdAt || order.date || new Date())}</span>
@@ -166,6 +171,7 @@ export function OrdersPage({ orders = [], onNavigate }) {
 }
 
 export function OrderDetailPage({ orderId, orders = [], onNavigate }) {
+  const { products } = useStore();
   const order = orders.find((item) => item.id === orderId);
   const tracking = getTrackingSummary(order);
 
@@ -224,7 +230,7 @@ export function OrderDetailPage({ orderId, orders = [], onNavigate }) {
           <section>
             <h2>Items</h2>
             {(order.lines || []).map((line) => {
-              const product = line.product || shopProducts.find((item) => item.id === line.id) || shopProducts[0];
+              const product = line.product || products.find((item) => item.id === line.id) || products[0];
               return (
                 <div className="checkout-summary__item" key={`${line.id}-${line.size}-${line.color}`} style={{ gridTemplateColumns: "56px 1fr auto" }}>
                   <img src={product.images[0]} alt={product.name} />
@@ -267,13 +273,13 @@ export function OrderDetailPage({ orderId, orders = [], onNavigate }) {
 }
 
 export function AccountPage({ onNavigate }) {
-  const { orders, wishlist, recentlyViewed, addresses, stockNotifications, contactRequests, addAddress, removeAddress } = useStore();
+  const { products, orders, wishlist, recentlyViewed, addresses, stockNotifications, contactRequests, addAddress, removeAddress } = useStore();
   const [profile, setProfile] = useState(readProfile);
   const [profileSaved, setProfileSaved] = useState(false);
   const [session, setSession] = useState(() => readStoredJson("nova-account-session", { mode: "guest" }));
   const [addressForm, setAddressForm] = useState({ label: "Home", recipient: "", address: "", city: "", state: "", postal: "" });
   const [addressError, setAddressError] = useState("");
-  const recentProducts = recentlyViewed.map((id) => shopProducts.find((product) => product.id === id)).filter(Boolean);
+  const recentProducts = recentlyViewed.map((id) => products.find((product) => product.id === id)).filter(Boolean);
 
   const saveProfile = (event) => {
     event.preventDefault();
@@ -383,26 +389,117 @@ export function ContactPage() {
 }
 
 export function ProductReviewPanel({ product }) {
-  const { customerReviews, saveReview } = useStore();
-  const [form, setForm] = useState({ name: "", email: "", rating: 5, body: "" });
+  const [form, setForm] = useState({ rating: 5, body: "" });
   const [saved, setSaved] = useState(false);
-  const reviews = customerReviews.filter((review) => review.productId === product.id);
-  const reviewCount = product.reviews + reviews.length;
-  const averageRating = reviewCount
-    ? (product.rating * product.reviews + reviews.reduce((sum, review) => sum + review.rating, 0)) / reviewCount
-    : product.rating;
-  const submit = (event) => {
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reviews, setReviews] = useState(product.userReviews || []);
+
+  const customerToken = localStorage.getItem("nova_customer_token");
+
+  // Keep reviews in sync if product prop changes
+  useEffect(() => {
+    setReviews(product.userReviews || []);
+  }, [product.userReviews]);
+
+  const reviewCount = product.reviews;
+  const averageRating = product.rating;
+
+  const submit = async (event) => {
     event.preventDefault();
-    saveReview({ ...form, productId: product.id });
-    setForm({ ...form, body: "" });
-    setSaved(true);
+    if (!customerToken) {
+      setError("Please sign in to submit a review.");
+      return;
+    }
+    
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await submitReview(product.slug, form.rating, form.body, customerToken);
+      setSaved(true);
+      setForm({ rating: 5, body: "" });
+      setReviews([res.review, ...reviews]);
+    } catch (err) {
+      setError(err.message || "Failed to submit review.");
+    } finally {
+      setLoading(false);
+    }
   };
-  return <section id="reviews" className="product-reviews">
-    <div><p className="eyebrow eyebrow--dark">The NOVA community</p><h2>Worn and loved</h2><p className="review-score">{averageRating.toFixed(1)} <StarIcon /> <span>Based on {reviewCount} reviews</span></p><div className="review-breakdown">{[5, 4, 3, 2, 1].map((stars, index) => <div key={stars}><span>{stars} <StarIcon /></span><i><b style={{ width: `${[82, 13, 4, 1, 0][index]}%` }} /></i><small>{[82, 13, 4, 1, 0][index]}%</small></div>)}</div><p className="review-preview-note">Preview reviews are saved locally and are not verified purchases.</p></div>
-    <div className="review-write"><h3>Share your experience</h3><form onSubmit={submit}><label>Your name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} autoComplete="name" required /></label><label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} autoComplete="email" required /></label><label>Rating<select value={form.rating} onChange={(event) => setForm({ ...form, rating: Number(event.target.value) })}>{[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} stars</option>)}</select></label><label>Your review<textarea value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} rows="3" minLength="10" required /></label><button className="btn btn--dark">Save review</button>{saved && <p className="inline-confirmation" role="status">Review saved on this device. Verification isn't available in preview.</p>}</form></div>
-    <div className="review-quote"><p>“The quality is even better in person. An easy piece that has already become part of my weekly rotation.”</p><span>Sample review · Not verified</span><div className="review-customer-photos"><img src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=220&q=80" alt="Customer styling NOVA" loading="lazy" /><img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=220&q=80" alt="Customer outfit detail" loading="lazy" /></div></div>
-    <div className="review-list">{reviews.map((review) => <article key={review.id}><p className="review-list__rating">{review.rating} <StarIcon /></p><p>{review.body}</p><span>{review.name} · Preview review, not verified</span></article>)}</div>
-  </section>;
+
+  return (
+    <section id="reviews" className="product-reviews">
+      <div>
+        <p className="eyebrow eyebrow--dark">The NOVA community</p>
+        <h2>Worn and loved</h2>
+        <p className="review-score">
+          {Number(averageRating || 0).toFixed(1)} <StarIcon /> <span>Based on {reviewCount} reviews</span>
+        </p>
+        <div className="review-breakdown">
+          {[5, 4, 3, 2, 1].map((stars, index) => (
+            <div key={stars}>
+              <span>{stars} <StarIcon /></span>
+              <i><b style={{ width: `${[82, 13, 4, 1, 0][index]}%` }} /></i>
+              <small>{[82, 13, 4, 1, 0][index]}%</small>
+            </div>
+          ))}
+        </div>
+        <p className="review-preview-note">Verified purchase reviews.</p>
+      </div>
+
+      <div className="review-write">
+        <h3>Share your experience</h3>
+        {!customerToken ? (
+          <p className="muted-copy" style={{ marginTop: '16px' }}>
+            Please <a href="#/auth" style={{ textDecoration: 'underline' }}>sign in</a> to write a review.
+          </p>
+        ) : (
+          <form onSubmit={submit}>
+            <label>
+              Rating
+              <select value={form.rating} onChange={(event) => setForm({ ...form, rating: Number(event.target.value) })}>
+                {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} stars</option>)}
+              </select>
+            </label>
+            <label>
+              Your review
+              <textarea value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} rows="3" minLength="10" required />
+            </label>
+            {error && <p className="form-error" role="alert" style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+            <button className="btn btn--dark" disabled={loading}>
+              {loading ? "Saving..." : "Save review"}
+            </button>
+            {saved && <p className="inline-confirmation" role="status" style={{ color: 'green', marginTop: '10px' }}>Review published successfully!</p>}
+          </form>
+        )}
+      </div>
+
+      {reviews.length === 0 && (
+        <div className="review-quote">
+          <p>“The quality is even better in person. An easy piece that has already become part of my weekly rotation.”</p>
+          <span>Sample review · Not verified</span>
+          <div className="review-customer-photos">
+            <img src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=220&q=80" alt="Customer styling NOVA" loading="lazy" />
+            <img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=220&q=80" alt="Customer outfit detail" loading="lazy" />
+          </div>
+        </div>
+      )}
+
+      {reviews.length > 0 && (
+        <div className="review-list" style={{ marginTop: '32px' }}>
+          {reviews.map((review) => (
+            <article key={review._id || review.id} style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--line-on-light)' }}>
+              <p className="review-list__rating" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}>
+                {review.rating} <StarIcon style={{ width: '14px', height: '14px' }} />
+              </p>
+              <p style={{ margin: '8px 0', lineHeight: 1.5 }}>{review.comment || review.body}</p>
+              <span style={{ fontSize: '12px', color: 'var(--muted-on-light)' }}>{review.customer_name || review.name} · Verified Buyer</span>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 export function BackInStockForm({ product }) {
@@ -434,6 +531,7 @@ export function FilmModal({ open, onClose }) {
   }, [open, onClose]);
   if (!open) return null;
   const filmUrl = import.meta.env.VITE_BRAND_FILM_URL;
-  const poster = shopProducts[0].images[1];
+  const { products } = useStore();
+  const poster = products[0]?.images[1];
   return <div className="modal-backdrop film-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="film-modal" role="dialog" aria-modal="true" aria-label="NOVA brand film"><button className="icon-close film-modal__close" onClick={onClose} aria-label="Close film"><CloseIcon /></button>{filmUrl ? <video controls autoPlay playsInline poster={poster}><source src={filmUrl} /></video> : <><img src={poster} alt="NOVA Winter '26 editorial" /><div className="film-modal__copy"><p className="eyebrow">NOVA / WINTER '26</p><h2>A film for the in-between.</h2><p>The brand film isn't configured yet. Explore the collection while we prepare it.</p><a className="btn btn--light" href="#/collections/winter-26" onClick={onClose}>Explore Winter '26 <ArrowIcon /></a></div></>}</section></div>;
 }

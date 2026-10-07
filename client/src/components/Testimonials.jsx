@@ -29,8 +29,8 @@ export default function Testimonials() {
     <section className="testimonials">
       <div className="section-header testimonials__intro">
         <div>
-          <p className="eyebrow eyebrow--light">Real Stories</p>
-          <h2 className="section-heading section-heading--light">Loved by Our Community</h2>
+          <p className="eyebrow eyebrow--light reveal-up">Real Stories</p>
+          <h2 className="section-heading section-heading--light reveal-up stagger-1">Loved by Our Community</h2>
         </div>
         <div className="testimonials__nav">
           <button aria-label="Previous testimonials" onClick={() => scroll(-1)}>
@@ -42,7 +42,7 @@ export default function Testimonials() {
         </div>
       </div>
 
-      <div className="testimonials__track" ref={trackRef}>
+      <div className="testimonials__track reveal-up stagger-2" ref={trackRef}>
         {testimonials.map((t) => (
           <article className="testimonial-card" key={t._id}>
             <div className="testimonial-card__head">

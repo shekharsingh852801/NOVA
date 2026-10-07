@@ -20,22 +20,22 @@ export default function Sustainability() {
 
       <div className="sustainability__content">
         <div className="sustainability__intro">
-          <p className="eyebrow eyebrow--light">Sustainability</p>
-          <h2 className="section-heading section-heading--light">
+          <p className="eyebrow eyebrow--light reveal-up">Sustainability</p>
+          <h2 className="section-heading section-heading--light reveal-up stagger-1">
             Style That Respects the Planet
           </h2>
-          <p className="sustainability__copy">
+          <p className="sustainability__copy reveal-up stagger-2">
             We use eco-friendly fabrics, ethical production and sustainable
             packaging — because great style should never come at the earth's expense.
           </p>
-          <a href="#/about" className="btn btn--light">
+          <a href="#/about" className="btn btn--light reveal-up stagger-3">
             Our Commitment <ArrowIcon />
           </a>
         </div>
 
         <div className="sustainability__grid">
-          {POINTS.map(({ icon: Icon, title, subtitle }) => (
-            <div className="sustainability__point" key={title}>
+          {POINTS.map(({ icon: Icon, title, subtitle }, index) => (
+            <div className={`sustainability__point reveal-up stagger-${(index % 4) + 1}`} key={title}>
               <span className="sustainability__icon">
                 <Icon />
               </span>
