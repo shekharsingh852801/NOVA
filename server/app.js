@@ -35,7 +35,7 @@ export function createApp() {
         if (!origin) return callback(null, true);
 
         const normalizedOrigin = origin.replace(/\/+$/, "");
-        if (allowedOrigins.has(normalizedOrigin) || /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(normalizedOrigin)) {
+        if (allowedOrigins.has(normalizedOrigin) || /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+):\d+$/.test(normalizedOrigin)) {
           return callback(null, true);
         }
 
