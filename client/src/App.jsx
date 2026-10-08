@@ -33,7 +33,6 @@ import {
   CartPage,
   CollectionDetail,
   CollectionsPage,
-  EditorialPage,
   JournalPage,
   OrderSuccess,
   PolicyPage,
@@ -47,6 +46,7 @@ import {
   WishlistPage,
   collections,
 } from "./components/Commerce.jsx";
+import AboutPage from "./components/AboutPage.jsx";
 
 function currentRoute() {
   return window.location.hash.startsWith("#/") ? window.location.hash.slice(2) : "";
@@ -297,13 +297,7 @@ function Storefront() {
       ) : articlePage ? (
         <JournalPage articleSlug={articleSlug} />
       ) : pathname === "about" ? (
-        <EditorialPage
-          title="Wear what stays."
-          eyebrow="A little about NOVA"
-          image="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1800&q=90"
-          copy="NOVA is a considered wardrobe for the everyday. We make enduring pieces with thoughtful materials, useful details, and room for your own point of view."
-          onNavigate={navigate}
-        />
+        <AboutPage onNavigate={navigate} />
       ) : pathname === "contact" ? (
         <ContactPage />
       ) : pathname === "account" ? (
