@@ -647,12 +647,21 @@ h1, h2, h3, p {
   padding: 24px;
   display: grid;
   grid-template-columns: minmax(150px, 195px) 1fr;
-  gap: 18px;
-  align-items: center;
+  grid-template-areas:
+    "intro nav"
+    "intro track";
+  gap: 8px 18px;
+  align-items: start;
+}
+.testimonials__intro {
+  grid-area: intro;
+  align-self: center;
 }
 .testimonials__nav {
+  grid-area: nav;
   display: flex;
   gap: 10px;
+  justify-self: end;
 }
 .testimonials__nav button {
   width: 24px;
@@ -664,15 +673,26 @@ h1, h2, h3, p {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 .testimonials__nav button:hover { background: rgba(255, 255, 255, 0.06); }
+.testimonials__nav button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .testimonials__track {
+  grid-area: track;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: calc(33.333333% - 5.333333px);
   gap: 8px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  min-width: 0;
 }
+.testimonials__track:focus-visible { outline: 1px solid var(--muted-on-dark); outline-offset: 3px; }
 .testimonial-card {
   background: var(--black-card);
   border: 1px solid var(--line-on-dark);
@@ -953,7 +973,12 @@ h1, h2, h3, p {
   .brand-story__media { min-height: 320px; }
   .brand-story__content { flex-direction: column; align-items: stretch; }
   .sustainability__content { grid-template-columns: 1fr; }
-  .testimonials { grid-template-columns: 1fr; }
+  .testimonials {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "intro nav"
+      "track track";
+  }
   .newsletter__content { grid-template-columns: 1fr; }
   .newsletter__content > .newsletter-form { grid-column: 1; grid-row: auto; margin-top: 4px; }
   .lookbook { grid-template-columns: 1fr; }
@@ -1854,7 +1879,9 @@ h1, h2, h3, p {
     width: 100%;
     justify-content: space-between;
   }
-  .testimonials__track { grid-template-columns: 1fr; }
+  .testimonials { gap: 14px 12px; }
+  .testimonials__intro { align-self: end; }
+  .testimonials__track { grid-auto-columns: 100%; }
   .lookbook__strip { grid-template-columns: repeat(2, 1fr); }
   .section-header { flex-direction: column; align-items: flex-start; gap: 14px; }
   .hero__scroll { display: none; }
@@ -3624,6 +3651,3 @@ body.shop-filter-open { overflow: hidden; }
 .auth-split__footer a:hover {
   color: var(--white);
 }
-
-
-

@@ -21,30 +21,66 @@ export default function Testimonials() {
 
   const scroll = (dir) => {
     const track = trackRef.current;
-    if (!track) return;
-    track.scrollBy({ left: dir * (track.clientWidth * 0.8), behavior: "smooth" });
+    const card = track?.firstElementChild;
+    if (!track || !card || testimonials.length < 2) return;
+
+    const gap = Number.parseFloat(window.getComputedStyle(track).columnGap) || 0;
+    const step = card.getBoundingClientRect().width + gap;
+    const copyWidth = step * testimonials.length;
+
+    if (dir > 0 && track.scrollLeft >= copyWidth - 1) {
+      track.scrollTo({ left: 0, behavior: "instant" });
+    } else if (dir < 0 && track.scrollLeft <= 1) {
+      track.scrollTo({ left: copyWidth, behavior: "instant" });
+    }
+
+    track.scrollBy({ left: dir * step, behavior: "smooth" });
   };
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) scroll(1);
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, [testimonials, scroll]);
 
   return (
     <section className="testimonials">
-      <div className="section-header testimonials__intro">
+      <div className="testimonials__intro">
         <div>
           <p className="eyebrow eyebrow--light reveal-up">Real Stories</p>
           <h2 className="section-heading section-heading--light reveal-up stagger-1">Loved by Our Community</h2>
         </div>
-        <div className="testimonials__nav">
-          <button aria-label="Previous testimonials" onClick={() => scroll(-1)}>
-            <ChevronIcon direction="left" />
-          </button>
-          <button aria-label="Next testimonials" onClick={() => scroll(1)}>
-            <ChevronIcon direction="right" />
-          </button>
-        </div>
       </div>
 
-      <div className="testimonials__track reveal-up stagger-2" ref={trackRef}>
-        {testimonials.map((t) => (
-          <article className="testimonial-card" key={t._id}>
+      <div className="testimonials__nav" aria-label="Testimonial navigation">
+        <button
+          aria-label="Previous testimonials"
+          aria-controls="testimonials-track"
+          onClick={() => scroll(-1)}
+        >
+          <ChevronIcon direction="left" />
+        </button>
+        <button
+          aria-label="Next testimonials"
+          aria-controls="testimonials-track"
+          onClick={() => scroll(1)}
+        >
+          <ChevronIcon direction="right" />
+        </button>
+      </div>
+
+      <div
+        className="testimonials__track reveal-up stagger-2"
+        id="testimonials-track"
+        ref={trackRef}
+        tabIndex={0}
+        aria-label="Customer reviews"
+        role="region"
+      >
+        {[...testimonials, ...testimonials, ...testimonials].map((t, index) => (
+          <article className="testimonial-card" key={`${t._id}-${index}`}>
             <div className="testimonial-card__head">
               <img src={t.avatar} alt="" className="testimonial-card__avatar" />
               <div>
