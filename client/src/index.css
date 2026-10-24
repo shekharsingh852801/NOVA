@@ -910,6 +910,17 @@ h1, h2, h3, p {
   color: var(--white);
 }
 .footer__social-icon:hover { background: rgba(255, 255, 255, 0.06); }
+.footer__contact {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+  margin-top: 10px;
+}
+.footer__contact a {
+  color: var(--muted-on-dark);
+  font-size: 11px;
+}
+.footer__contact a:hover { color: var(--white); }
 .footer__column-title {
   font-size: 11px;
   font-weight: 600;
@@ -3650,4 +3661,24 @@ body.shop-filter-open { overflow: hidden; }
 
 .auth-split__footer a:hover {
   color: var(--white);
+}
+/* Homepage preview is only shown to the admin using a short-lived preview token. */
+.homepage-preview-banner {
+  position: relative;
+  z-index: 80;
+  padding: 9px 16px;
+  color: #f7f6f2;
+  background: #5c6650;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.homepage-preview-message {
+  display: grid;
+  place-items: center;
+  min-height: 45vh;
+  padding: 40px 20px;
+  color: var(--white);
+  text-align: center;
 }

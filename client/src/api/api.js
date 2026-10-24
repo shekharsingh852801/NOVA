@@ -33,6 +33,14 @@ export async function fetchTestimonials() {
   return request("/testimonials");
 }
 
+export async function fetchHomepage() {
+  return request("/homepage");
+}
+
+export async function fetchHomepagePreview(token) {
+  return request(`/homepage/preview/${encodeURIComponent(token)}`);
+}
+
 export async function subscribeToNewsletter(email, source) {
   return request("/newsletter/subscribe", {
     method: "POST",
@@ -100,6 +108,27 @@ export async function fetchCustomerOrders(token) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${token}`
     }
+  });
+}
+
+export async function fetchCustomerReturnRequests(token) {
+  return request("/returns/mine", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createReturnRequest(token, orderId, reason, details) {
+  return request("/returns", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({ orderId, reason, details }),
   });
 }
 

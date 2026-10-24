@@ -7,10 +7,13 @@ const FEATURES = [
   { icon: RefreshIcon, title: "Easy Returns", subtitle: "Hassle-free 30 days" },
 ];
 
-export default function FeatureBar() {
+export default function FeatureBar({ content }) {
+  const items = content?.items || FEATURES.map(({ title, subtitle }) => ({ title, subtitle }));
   return (
     <section className="feature-bar" aria-label="Store benefits">
-      {FEATURES.map(({ icon: Icon, title, subtitle }) => (
+      {items.map(({ title, subtitle }, index) => {
+        const Icon = FEATURES[index % FEATURES.length].icon;
+        return (
         <div className="feature-bar__item" key={title}>
           <span className="feature-bar__icon">
             <Icon />
@@ -20,7 +23,8 @@ export default function FeatureBar() {
             <p className="feature-bar__subtitle">{subtitle}</p>
           </span>
         </div>
-      ))}
+        );
+      })}
     </section>
   );
 }

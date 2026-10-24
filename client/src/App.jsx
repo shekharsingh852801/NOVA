@@ -15,7 +15,7 @@ import Footer from "./components/Footer.jsx";
 
 import { StoreProvider, useStore } from "./context/StoreContext.jsx";
 import { readStoredJson, writeStoredJson } from "./utils/storage.js";
-import { createOrder, isApiConfigured, syncCart, fetchCustomerOrders } from "./api/api.js";
+import { createOrder, isApiConfigured, syncCart, fetchCustomerOrders, fetchHomepage, fetchHomepagePreview } from "./api/api.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import AuthPage from "./components/AuthPage.jsx";
 import ResetPassword from "./components/ResetPassword.jsx";
@@ -83,6 +83,65 @@ function Storefront() {
   const [lookOpen, setLookOpen] = useState(false);
   const [filmOpen, setFilmOpen] = useState(false);
   const [latestOrder, setLatestOrder] = useState(null);
+  const [homepageContent, setHomepageContent] = useState(null);
+  const [homepagePreviewError, setHomepagePreviewError] = useState("");
+  const homepageUrlParams = new URLSearchParams(window.location.search);
+  const homepagePreviewToken = homepageUrlParams.get("homepagePreview");
+  const homepageSectionPreview = homepagePreviewToken ? homepageUrlParams.get("section") : null;
+
+  useEffect(() => {
+    let active = true;
+    const loadHomepage = homepagePreviewToken
+      ? fetchHomepagePreview(homepagePreviewToken)
+      : fetchHomepage();
+    loadHomepage.then((result) => {
+      if (active) setHomepageContent(result.content);
+    }).catch((error) => {
+      if (!active) return;
+      if (homepagePreviewToken) {
+        setHomepagePreviewError(error.message || "This homepage preview could not be loaded.");
+      } else {
+        console.error("Failed to load published homepage content:", error);
+      }
+    });
+    return () => { active = false; };
+  }, [homepagePreviewToken]);
+
+  useEffect(() => {
+    if (!homepageSectionPreview || !homepagePreviewToken || (!homepageContent && !homepagePreviewError)) return undefined;
+
+    let observer;
+    const getPreviewSection = () => homepageSectionPreview === "footer"
+      ? document.querySelector(".footer")
+      : document.querySelector(".home-page--section-preview > section");
+    let section = getPreviewSection();
+
+    const reportHeight = () => {
+      section = getPreviewSection();
+      const height = section ? Math.ceil(section.getBoundingClientRect().height) : 180;
+      window.parent.postMessage({ type: "nova-homepage-section-preview-size", height }, "*");
+    };
+    const handlePreviewRequest = (event) => {
+      if (event.source === window.parent && event.data?.type === "nova-homepage-section-preview-request-size") {
+        reportHeight();
+      }
+    };
+
+    if (section && "ResizeObserver" in window) {
+      observer = new ResizeObserver(reportHeight);
+      observer.observe(section);
+    }
+    window.addEventListener("message", handlePreviewRequest);
+    reportHeight();
+    document.fonts?.ready.then(reportHeight);
+    window.addEventListener("load", reportHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("message", handlePreviewRequest);
+      window.removeEventListener("load", reportHeight);
+    };
+  }, [homepageContent, homepagePreviewError, homepagePreviewToken, homepageSectionPreview]);
 
   useEffect(() => {
     if (customer) {
@@ -170,6 +229,48 @@ function Storefront() {
   const articleSlug = pathname.startsWith("journal/") ? pathname.slice("journal/".length) : "";
   const articlePage = pathname === "journal" || Boolean(articleSlug);
 
+  const renderHomepageSection = (section) => {
+    if (!section.enabled) return null;
+    switch (section.id) {
+      case "hero":
+        return <Hero key={section.id} content={section} onWatchVideo={() => setFilmOpen(true)} />;
+      case "featureBar":
+        return <FeatureBar key={section.id} content={section} />;
+      case "newArrivals": {
+        const selectedProducts = section.productSlugs?.length
+          ? section.productSlugs.map((slug) => products.find((item) => item.slug === slug)).filter(Boolean)
+          : products.filter((item) => item.newArrival || item.featured).slice(0, 5);
+        return <NewArrivals
+          key={section.id}
+          products={selectedProducts}
+          loading={productsLoading}
+          onQuickView={openQuickView}
+          onViewAll={() => navigate(section.buttonHref || "shop?edit=new-arrivals")}
+          content={section}
+        />;
+      }
+      case "categories":
+        return <CategoryGrid
+          key={section.id}
+          content={section}
+          onExplore={() => navigate(section.buttonHref || "shop")}
+          onCategorySelect={(item) => navigate(item === "Sale" ? "sale" : `shop?category=${encodeURIComponent(item)}`)}
+        />;
+      case "brandStory":
+        return <BrandStory key={section.id} content={section} />;
+      case "sustainability":
+        return <Sustainability key={section.id} content={section} />;
+      case "testimonials":
+        return <Testimonials key={section.id} content={section} />;
+      case "lookbook":
+        return <Lookbook key={section.id} content={section} onShopLook={() => setLookOpen(true)} />;
+      case "newsletter":
+        return <Newsletter key={section.id} content={section} />;
+      default:
+        return null;
+    }
+  };
+
   useEffect(() => {
     const section = pathname === "" ? params.get("section") : null;
     if (!section) return undefined;
@@ -188,7 +289,7 @@ function Storefront() {
     
     document.querySelectorAll(".reveal-up").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [pathname]);
+  }, [pathname, homepageContent]);
 
   const openQuickView = (item) => {
     if (item?.look) {
@@ -236,9 +337,10 @@ function Storefront() {
 
   return (
     <>
-      {showPagePreloader && <PagePreloader />}
-      {pathname !== "auth" && (
+      {!homepageSectionPreview && showPagePreloader && <PagePreloader />}
+      {!homepageSectionPreview && pathname !== "auth" && (
         <>
+          {pathname === "" && homepagePreviewToken && homepageContent && <div className="homepage-preview-banner">Draft preview — not visible to shoppers</div>}
           <AnnouncementBar />
           <Navbar
             customer={customer}
@@ -256,21 +358,33 @@ function Storefront() {
       )}
       <ErrorBoundary>
         {pathname === "" ? (
-        <main id="top" className="home-page">
-          <Hero onWatchVideo={() => setFilmOpen(true)} />
-          <FeatureBar />
-          <NewArrivals
-            products={products.filter((item) => item.newArrival || item.featured).slice(0, 5)}
-            loading={productsLoading}
-            onQuickView={openQuickView}
-            onViewAll={() => navigate("shop?edit=new-arrivals")}
-          />
-          <CategoryGrid onCategorySelect={(item) => navigate(item === "Sale" ? "sale" : `shop?category=${item}`)} />
-          <BrandStory />
-          <Sustainability />
-          <Testimonials />
-          <Lookbook onShopLook={() => setLookOpen(true)} />
-          <Newsletter />
+        <main id="top" className={`home-page${homepageSectionPreview ? " home-page--section-preview" : ""}`}>
+          {homepagePreviewToken && homepagePreviewError ? (
+            <p className="homepage-preview-message" role="alert">{homepagePreviewError}</p>
+          ) : homepagePreviewToken && !homepageContent ? (
+            <p className="homepage-preview-message" role="status">Loading draft preview…</p>
+          ) : homepageContent ? (
+            homepageContent.sections
+              .filter((section) => !homepageSectionPreview || section.id === homepageSectionPreview)
+              .map(renderHomepageSection)
+          ) : (
+            <>
+              <Hero onWatchVideo={() => setFilmOpen(true)} />
+              <FeatureBar />
+              <NewArrivals
+                products={products.filter((item) => item.newArrival || item.featured).slice(0, 5)}
+                loading={productsLoading}
+                onQuickView={openQuickView}
+                onViewAll={() => navigate("shop?edit=new-arrivals")}
+              />
+              <CategoryGrid onCategorySelect={(item) => navigate(item === "Sale" ? "sale" : `shop?category=${item}`)} />
+              <BrandStory />
+              <Sustainability />
+              <Testimonials />
+              <Lookbook onShopLook={() => setLookOpen(true)} />
+              <Newsletter />
+            </>
+          )}
         </main>
       ) : pathname === "search" ? (
         <ShopPage category="All" query={query} sortBy={sortBy} routePath={pathname} queryString={queryString} onQuickView={openQuickView} />
@@ -328,7 +442,9 @@ function Storefront() {
         />
       )}
       </ErrorBoundary>
-      {pathname !== "auth" && <Footer />}
+      {(!homepageSectionPreview || homepageSectionPreview === "footer") && pathname !== "auth" && (
+        <Footer content={homepageContent?.footer} />
+      )}
 
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} onNavigate={navigate} />
       <SearchOverlay

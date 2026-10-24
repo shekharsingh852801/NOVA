@@ -1,23 +1,23 @@
 import { categories } from "../data/products.js";
 import { ArrowIcon } from "./Icons.jsx";
 
-export default function CategoryGrid({ onCategorySelect }) {
+export default function CategoryGrid({ onCategorySelect, content, onExplore }) {
+  const items = content?.items || categories;
   return (
     <section id="shop" className="category-section">
       <div className="category-section__intro">
-        <p className="eyebrow eyebrow--dark">Shop By Category</p>
-        <h2 className="section-heading section-heading--dark">Find Your Perfect Fit</h2>
+        <p className="eyebrow eyebrow--dark">{content?.eyebrow || "Shop By Category"}</p>
+        <h2 className="section-heading section-heading--dark">{content?.heading || "Find Your Perfect Fit"}</h2>
         <p className="category-section__copy">
-          From everyday essentials to seasonal statement pieces — explore our carefully
-          curated categories.
+          {content?.description || "From everyday essentials to seasonal statement pieces — explore our carefully curated categories."}
         </p>
-        <button type="button" onClick={() => onCategorySelect("All")} className="btn btn--dark">
-          Explore All <ArrowIcon />
+        <button type="button" onClick={onExplore || (() => onCategorySelect("All"))} className="btn btn--dark">
+          {content?.buttonLabel || "Explore All"} <ArrowIcon />
         </button>
       </div>
 
       <div className="category-grid">
-        {categories.map((cat) => (
+        {items.map((cat) => (
           <a href={`#/shop?category=${cat.name}`} className="category-card" key={cat.name} onClick={(event) => { event.preventDefault(); onCategorySelect(cat.name); }}>
             <img src={cat.image} alt={`${cat.name} collection`} loading="lazy" />
             <div className="category-card__scrim" aria-hidden="true" />

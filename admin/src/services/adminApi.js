@@ -56,7 +56,7 @@ export const adminApi = {
     
     // We can't use the standard `request` wrapper because we need to NOT set Content-Type
     // so the browser sets it to multipart/form-data with the correct boundary.
-    const response = await fetch(`${API_URL}/upload`, {
+    const response = await fetch(`${API_BASE}/upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('nova_admin_token')}`
@@ -65,7 +65,8 @@ export const adminApi = {
     });
     
     if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status}`);
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Upload failed: ${response.status}`);
     }
     return response.json();
   },
@@ -74,6 +75,10 @@ export const adminApi = {
   getOrders: () => request('/orders'),
   getOrder: (id) => request(`/orders/${id}`),
   updateOrderStatus: (id, statusData) => request(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify(statusData) }),
+
+  // Returns
+  getReturnRequests: (status = '', page = 1, limit = 50) => request(`/returns/admin?page=${page}&limit=${limit}${status ? `&status=${encodeURIComponent(status)}` : ''}`),
+  updateReturnRequest: (id, update) => request(`/returns/admin/${id}`, { method: 'PATCH', body: JSON.stringify(update) }),
 
   // Customers
   getCustomers: () => request('/customers'),
@@ -85,4 +90,11 @@ export const adminApi = {
   // Auth
   login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   getMe: () => request('/auth/me'),
+  getHomepage: () => request('/homepage/admin'),
+  saveHomepageDraft: (content) => request('/homepage/admin/draft', {
+    method: 'PUT',
+    body: JSON.stringify(content),
+  }),
+  publishHomepage: () => request('/homepage/admin/publish', { method: 'POST' }),
+  createHomepagePreview: () => request('/homepage/admin/preview-token', { method: 'POST' }),
 };

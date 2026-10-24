@@ -12,36 +12,38 @@ const COLOR_VALUES = {
 };
 
 function parseJSON(value, fallback) {
+  if (value == null) return fallback;
   if (typeof value !== "string") return value;
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
-function serializeProduct(row) {
-  const colors = parseJSON(row.colors_json, []);
+export function serializeProduct(row) {
+  const colors = parseJSON(row.colors_json, row.colors || []);
+  const category = typeof row.category === "string" ? row.category : "";
   return {
-    id: row.slug,
-    _id: row.slug,
+    id: row.slug || String(row._id),
+    _id: row.slug || String(row._id),
     slug: row.slug,
-    name: row.name,
-    subcategory: row.subcategory,
-    price: row.price,
+    name: row.name || "",
+    subcategory: row.subcategory || "",
+    price: row.price ?? 0,
     compareAtPrice: row.compare_at_price,
     image: row.image,
-    images: parseJSON(row.images_json, [row.image]),
+    images: parseJSON(row.images_json, row.images || (row.image ? [row.image] : [])),
     tag: row.tag,
-    colors: colors.map((color) => typeof color === "string" ? { name: color, value: COLOR_VALUES[color] || "#777777" } : color),
-    sizes: parseJSON(row.sizes_json, []),
-    description: row.description,
-    material: row.material,
-    fit: row.fit,
-    care: row.care,
-    rating: row.rating,
-    reviews: row.reviews,
-    stock: row.stock,
-    tags: parseJSON(row.tags_json, []),
-    category: row.category[0].toUpperCase() + row.category.slice(1),
-    isNewArrival: Boolean(row.is_new_arrival),
-    newArrival: Boolean(row.new_arrival),
+    colors: (Array.isArray(colors) ? colors : []).map((color) => typeof color === "string" ? { name: color, value: COLOR_VALUES[color] || "#777777" } : color),
+    sizes: parseJSON(row.sizes_json, row.sizes || []),
+    description: row.description || "",
+    material: row.material || "",
+    fit: row.fit || "",
+    care: row.care || "",
+    rating: row.rating ?? 0,
+    reviews: row.reviews ?? 0,
+    stock: row.stock ?? 0,
+    tags: parseJSON(row.tags_json, row.tags || []),
+    category: category ? category[0].toUpperCase() + category.slice(1) : "",
+    isNewArrival: Boolean(row.is_new_arrival ?? row.isNewArrival),
+    newArrival: Boolean(row.new_arrival ?? row.newArrival),
     featured: Boolean(row.featured),
     bestSeller: Boolean(row.best_seller),
     trending: Boolean(row.trending),

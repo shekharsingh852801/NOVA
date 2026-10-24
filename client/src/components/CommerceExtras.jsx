@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../context/StoreContext.jsx";
-import { createBackInStockRequest, createContactRequest, isApiConfigured, submitReview } from "../api/api.js";
+import { createBackInStockRequest, createContactRequest, createReturnRequest, fetchCustomerReturnRequests, isApiConfigured, submitReview } from "../api/api.js";
 import { ArrowIcon, CloseIcon, StarIcon } from "./Icons.jsx";
 
 function readProfile() {
@@ -115,7 +115,46 @@ function getTrackingSummary(order = {}) {
 
 export function OrdersPage({ orders = [], onNavigate }) {
   const { products } = useStore();
+  const customerToken = localStorage.getItem("nova_customer_token");
+  const [returnRequests, setReturnRequests] = useState([]);
+  const [returnOrderId, setReturnOrderId] = useState("");
+  const [returnReason, setReturnReason] = useState("changed_mind");
+  const [returnDetails, setReturnDetails] = useState("");
+  const [returnError, setReturnError] = useState("");
+  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [returnLoading, setReturnLoading] = useState(Boolean(customerToken));
   const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
+
+  useEffect(() => {
+    if (!customerToken) return;
+    let active = true;
+    fetchCustomerReturnRequests(customerToken)
+      .then((data) => {
+        if (active && Array.isArray(data)) setReturnRequests(data);
+      })
+      .catch((error) => {
+        if (active) setReturnError(error.message || "Return requests could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setReturnLoading(false);
+      });
+    return () => { active = false; };
+  }, [customerToken]);
+
+  const submitReturnRequest = async (order) => {
+    setReturnError("");
+    setReturnSubmitting(true);
+    try {
+      const created = await createReturnRequest(customerToken, order.id, returnReason, returnDetails);
+      setReturnRequests((current) => [{ ...created, order_id: String(created.order || order.id) }, ...current]);
+      setReturnOrderId("");
+      setReturnDetails("");
+    } catch (error) {
+      setReturnError(error.message || "Your return request could not be submitted.");
+    } finally {
+      setReturnSubmitting(false);
+    }
+  };
 
   return (
     <main className="commerce-page account-page">
@@ -137,25 +176,71 @@ export function OrdersPage({ orders = [], onNavigate }) {
               const firstItem = (order.lines || [])[0];
               const product = firstItem?.product || products.find((item) => item.id === firstItem?.id) || null;
               const tracking = getTrackingSummary(order);
+              const orderReference = order.order_number || order.id;
+              const returnRequest = returnRequests.find((request) => request.order_id === String(order.id));
+              const eligibleForReturn = order.status === "delivered";
 
               return (
-                <article className="account-order" key={order.id} style={{ display: "grid", gridTemplateColumns: "88px 1fr auto", gap: "18px", alignItems: "center", padding: "18px 0" }}>
-                  <img src={product?.images?.[0] || products[0]?.images[0]} alt={product?.name || "Order item"} style={{ width: "88px", height: "110px", objectFit: "cover" }} />
-                  <div style={{ display: "grid", gap: "6px" }}>
-                    <strong style={{ fontSize: "12px" }}>#{order.id}</strong>
-                    <span style={{ color: "var(--muted-on-light)", fontSize: "11px" }}>{formatOrderDate(order.createdAt || order.date || new Date())}</span>
-                    <span style={{ fontSize: "11px" }}>{itemCount} item{itemCount === 1 ? "" : "s"} · {order.status || tracking.label}</span>
-                  </div>
-                  <div style={{ display: "grid", justifyItems: "end", gap: "10px" }}>
-                    <strong style={{ fontSize: "12px" }}>{money(order.total || 0)}</strong>
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <button type="button" className="text-action" onClick={() => onNavigate(`account/orders/${order.id}`)}>View details</button>
-                      <button type="button" className="text-action" onClick={() => onNavigate("tracking")}>Track order</button>
+                <article key={order.id} style={{ borderBottom: "1px solid var(--line-on-light)", padding: "18px 0" }}>
+                  <div className="account-order" style={{ display: "grid", gridTemplateColumns: "88px 1fr auto", gap: "18px", alignItems: "center" }}>
+                    <img src={product?.images?.[0] || products[0]?.images[0]} alt={product?.name || "Order item"} style={{ width: "88px", height: "110px", objectFit: "cover" }} />
+                    <div style={{ display: "grid", gap: "6px" }}>
+                      <strong style={{ fontSize: "12px" }}>#{orderReference}</strong>
+                      <span style={{ color: "var(--muted-on-light)", fontSize: "11px" }}>{formatOrderDate(order.createdAt || order.date || new Date())}</span>
+                      <span style={{ fontSize: "11px" }}>{itemCount} item{itemCount === 1 ? "" : "s"} · {order.status || tracking.label}</span>
+                    </div>
+                    <div style={{ display: "grid", justifyItems: "end", gap: "10px" }}>
+                      <strong style={{ fontSize: "12px" }}>{money(order.total || 0)}</strong>
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "end" }}>
+                        <button type="button" className="text-action" onClick={() => onNavigate(`account/orders/${order.id}`)}>View details</button>
+                        <button type="button" className="text-action" onClick={() => onNavigate("tracking")}>Track order</button>
+                      </div>
                     </div>
                   </div>
+                  {returnRequest ? (
+                    <p role="status" style={{ margin: "12px 0 0 106px", fontSize: "12px" }}>
+                      Return request: <strong>{returnRequest.status}</strong>
+                    </p>
+                  ) : eligibleForReturn && customerToken ? (
+                    <div style={{ margin: "14px 0 0 106px" }}>
+                      {returnOrderId === String(order.id) ? (
+                        <form onSubmit={(event) => { event.preventDefault(); submitReturnRequest(order); }} style={{ display: "grid", gap: "10px", maxWidth: "480px" }}>
+                          <label>
+                            Reason for return
+                            <select value={returnReason} onChange={(event) => setReturnReason(event.target.value)}>
+                              <option value="damaged">Item arrived damaged</option>
+                              <option value="wrong_item">Wrong item received</option>
+                              <option value="quality_issue">Quality issue</option>
+                              <option value="changed_mind">Changed my mind</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </label>
+                          <label>
+                            Additional details (optional)
+                            <textarea rows="3" maxLength="1000" value={returnDetails} onChange={(event) => setReturnDetails(event.target.value)} />
+                          </label>
+                          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                            <button className="btn btn--dark" type="submit" disabled={returnSubmitting || returnLoading}>
+                              {returnSubmitting ? "Submitting…" : "Submit return request"}
+                            </button>
+                            <button className="text-action" type="button" onClick={() => { setReturnOrderId(""); setReturnError(""); }}>Cancel</button>
+                          </div>
+                        </form>
+                      ) : (
+                        <button type="button" className="text-action" disabled={returnLoading} onClick={() => { setReturnOrderId(String(order.id)); setReturnError(""); }}>
+                          Request a return
+                        </button>
+                      )}
+                    </div>
+                  ) : eligibleForReturn ? (
+                    <p style={{ margin: "12px 0 0 106px", fontSize: "12px" }}>
+                      <button type="button" className="text-action" onClick={() => onNavigate("auth")}>Sign in to request a return</button>
+                    </p>
+                  ) : null}
                 </article>
               );
             })}
+            {returnError && <p role="alert" style={{ color: "#a33", margin: "12px 0" }}>{returnError}</p>}
           </div>
         </div>
       ) : (

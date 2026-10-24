@@ -7,33 +7,32 @@ const STATS = [
   { value: "5", label: "Years of Impact" },
 ];
 
-export default function BrandStory() {
+export default function BrandStory({ content }) {
+  const stats = content?.stats || STATS;
   return (
     <section id="about" className="brand-story">
       <div className="brand-story__media">
         <img
-          src="https://images.unsplash.com/photo-1552334488-bec0803d3c5b?auto=format&fit=crop&w=1200&q=90"
-          alt="Two friends in casual streetwear sharing a bench"
+          src={content?.image || "https://images.unsplash.com/photo-1552334488-bec0803d3c5b?auto=format&fit=crop&w=1200&q=90"}
+          alt={content?.alt || "Two friends in casual streetwear sharing a bench"}
           loading="lazy"
         />
       </div>
 
       <div className="brand-story__content">
         <div className="brand-story__intro">
-          <p className="eyebrow eyebrow--light reveal-up">Our Story</p>
-          <h2 className="section-heading section-heading--light reveal-up stagger-1">More Than Just Clothing</h2>
+          <p className="eyebrow eyebrow--light reveal-up">{content?.eyebrow || "Our Story"}</p>
+          <h2 className="section-heading section-heading--light reveal-up stagger-1">{content?.heading || "More Than Just Clothing"}</h2>
           <p className="brand-story__copy reveal-up stagger-2">
-            We started NOVA with a simple belief — that what you wear should mean
-            something. Our designs are inspired by real people, real stories and a
-            better future.
+            {content?.description || "We started NOVA with a simple belief — that what you wear should mean something. Our designs are inspired by real people, real stories and a better future."}
           </p>
-          <a href="#/about" className="btn btn--light reveal-up stagger-3">
-            Our Journey <ArrowIcon />
+          <a href={content?.buttonHref || "#/about"} className="btn btn--light reveal-up stagger-3">
+            {content?.buttonLabel || "Our Journey"} <ArrowIcon />
           </a>
         </div>
 
         <div className="brand-story__stats">
-          {STATS.map((stat, index) => (
+          {stats.map((stat, index) => (
             <div className={`brand-story__stat reveal-up stagger-${index + 1}`} key={stat.label}>
               <p className="brand-story__stat-value">{stat.value}</p>
               <p className="brand-story__stat-label">{stat.label}</p>

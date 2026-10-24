@@ -14,6 +14,8 @@ import supportRoutes from "./routes/support.js";
 import testimonialRoutes from "./routes/testimonials.js";
 import customerRoutes from "./routes/customers.js";
 import uploadRoutes from "./routes/upload.js";
+import homepageRoutes from "./routes/homepage.js";
+import returnRoutes from "./routes/returns.js";
 
 export function createApp() {
   const app = express();
@@ -48,7 +50,11 @@ export function createApp() {
       },
     })
   );
-  app.use(express.json({ limit: "10kb" }));
+  app.use(express.json({
+    limit: "10kb",
+    type: (req) => !req.path.startsWith("/api/homepage"),
+  }));
+  app.use("/api/homepage", express.json({ limit: "128kb" }));
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", service: "nova-server" });
@@ -67,7 +73,19 @@ export function createApp() {
   app.use("/api/products", productRoutes);
   app.use("/api/testimonials", testimonialRoutes);
   app.use("/api/customers", customerRoutes);
+  app.use(
+    "/api/returns",
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 30,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      message: { message: "Too many returns requests. Please try again later." },
+    }),
+    returnRoutes
+  );
   app.use("/api/upload", uploadRoutes);
+  app.use("/api/homepage", homepageRoutes);
 
   // Serve static uploaded files
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -113,7 +131,9 @@ export function createApp() {
     const status = err.status || err.statusCode || 500;
     const clientMessages = {
       "entity.parse.failed": "Invalid JSON request body",
-      "entity.too.large": "Request body exceeds the 10 KB limit",
+      "entity.too.large": Number(err.limit) > 10 * 1024
+        ? "Request body exceeds the 128 KB limit"
+        : "Request body exceeds the 10 KB limit",
     };
     const message = status >= 500 ? "Internal server error" : clientMessages[err.type] || err.message;
 

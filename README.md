@@ -77,14 +77,13 @@ npm run dev                 # starts API on http://localhost:5001
 Normal API startup connects to MongoDB through `MONGODB_URI`; `DATABASE_PATH`
 is used by the SQLite migration utility, not by the server bootstrap.
 `/api/health` reports liveness and `/api/health/ready` reports database
-readiness. Newsletter, order, and support routes are rate-limited; request
-bodies are limited to 10 KB.
+readiness. Newsletter, order, support, and return routes are rate-limited; request
+bodies are limited to 10 KB (homepage content requests allow up to 128 KB).
 
 Keep `server/.env` private and do not commit it. Generate a fresh JWT secret for
 each deployment; the API refuses to start without `JWT_SECRET`.
 
-Run backend checks with `cd server && npm test`. They use an in-memory SQLite
-database and cover successful orders, inventory rollback, tracking, and requests.
+Run backend checks with `cd server && npm test`.
 
 See [client/COMMERCE_PLAN.md](client/COMMERCE_PLAN.md) for the staged delivery plan
 and the remaining production requirements.
@@ -102,18 +101,40 @@ Open http://localhost:5173. `VITE_API_URL` points to the local SQLite API to
 persist checkout, tracking, contact, and back-in-stock requests. Set
 `VITE_BRAND_FILM_URL` to an approved NOVA video URL to enable film playback.
 
+### 3. Admin and homepage content
+
+Start the authenticated admin application with `cd admin && npm run dev` and
+open http://localhost:5175. Sign in with an existing admin account, then open
+**Homepage** from the admin sidebar. The editor manages storefront homepage
+sections and the site-wide footer, supports image uploads and product selection,
+and provides draft preview and publish. Global navigation and the announcement
+bar remain separate and retain their existing storefront content.
+Draft edits are private; only published homepage sections are returned to the
+storefront.
+
+Set `VITE_API_URL` in both frontend applications to the API's `/api` URL when
+the API is not running on the default host. For previewing drafts on a deployed
+storefront, set `VITE_STOREFRONT_URL` in the admin app to its public base URL.
+Preview links expire after 15 minutes.
+
 ## Commerce API
 
 - `POST /api/orders` validates product slugs, sizes, colours, and quantities,
    calculates totals from SQLite, reserves stock transactionally, and creates a
    cash-on-delivery order with payment pending.
 - `POST /api/orders/track` looks up an order using its number and checkout email.
+- `POST /api/returns` lets an authenticated customer request a return for a
+  delivered order; `GET /api/returns/mine` lists that customer's requests.
+- `GET /api/returns/admin` and `PATCH /api/returns/admin/:id` let an authenticated
+  admin review requests and track approval, receipt, rejection, and an externally
+  issued refund reference. Refunds are recorded here, not processed by a payment
+  gateway. Each order can have one return request.
 - `POST /api/support/contact` and `POST /api/support/back-in-stock` validate and
    persist customer requests. Email delivery is not configured.
 - Payment capture, authenticated customer accounts, tax calculation, and live
    carrier events require production providers and are not enabled in this build.
 
-### 3. Production build
+### 4. Production build
 
 ```bash
 cd client && npm run build   # outputs client/dist, served by any static host
