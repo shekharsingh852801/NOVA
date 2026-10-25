@@ -88,12 +88,74 @@ export async function sendPasswordResetEmail(customer, resetLink) {
       subject: "Password Reset Request - NOVA",
       html,
     });
-    
+
     console.log("Password reset email sent:", info.messageId);
     if (!process.env.SMTP_USER) {
       console.log("Preview URL:", nodemailer.getTestMessageUrl(info));
     }
   } catch (err) {
     console.error("Failed to send password reset email:", err);
+  }
+}
+
+const emailShell = (inner) => `
+  <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+    <h2 style="text-align: center; letter-spacing: 0.2em;">NOVA</h2>
+    ${inner}
+    <p style="margin-top: 36px; font-size: 12px; color: #999; text-align: center;">Better Style. A Brighter Tomorrow.</p>
+  </div>
+`;
+
+async function sendMail(to, subject, html) {
+  const info = await transporter.sendMail({ from: '"NOVA" <noreply@nova.shop>', to, subject, html });
+  console.log(`${subject} email sent:`, info.messageId);
+  if (!process.env.SMTP_USER) {
+    console.log("Preview URL:", nodemailer.getTestMessageUrl(info));
+  }
+}
+
+export async function sendWelcomeEmail(email) {
+  try {
+    await sendMail(email, "Welcome to NOVA", emailShell(`
+      <h3>Welcome to the NOVA community</h3>
+      <p>You're on the list. Expect early access to new drops, members-only offers and style notes worth reading.</p>
+      <p>Here's something to start with: use code <strong>WELCOME15</strong> for 15% off your first order.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.STORE_URL || "http://localhost:5173"}" style="background-color: #1a1a17; color: #f7f6f2; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Shop New Arrivals</a>
+      </div>
+    `));
+  } catch (err) {
+    console.error("Failed to send welcome email:", err);
+  }
+}
+
+export async function sendBackInStockEmail(product, email) {
+  try {
+    await sendMail(email, `Back in stock: ${product.name}`, emailShell(`
+      <h3>Good news — it's back.</h3>
+      <p><strong>${product.name}</strong> is back in stock at NOVA.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.STORE_URL || "http://localhost:5173"}/#/product/${product.slug}" style="background-color: #1a1a17; color: #f7f6f2; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Shop it before it sells out</a>
+      </div>
+      <p style="font-size: 12px; color: #999;">You asked us to let you know when this item returned.</p>
+    `));
+  } catch (err) {
+    console.error(`Failed to send back-in-stock email to ${email}:`, err.message);
+  }
+}
+
+export async function sendReviewRequestEmail(order) {
+  try {
+    const itemLinks = (order.items || []).map((line) =>
+      `<li style="margin: 8px 0;"><a href="${process.env.STORE_URL || "http://localhost:5173"}/#/product/${line.slug}" style="color: #1a1a17;">${line.name} (Size ${line.size})</a></li>`
+    ).join("");
+    await sendMail(order.customer_email, `How was your NOVA order ${order.order_number}?`, emailShell(`
+      <h3>Your thoughts help the next shopper</h3>
+      <p>Hi ${order.customer_name}, your order <strong>${order.order_number}</strong> was delivered. If you have a moment, leave a quick review:</p>
+      <ul style="padding-left: 20px;">${itemLinks}</ul>
+      <p>Reviews take less than a minute and help other customers find their fit.</p>
+    `));
+  } catch (err) {
+    console.error("Failed to send review request email:", err);
   }
 }

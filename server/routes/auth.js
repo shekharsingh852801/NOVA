@@ -5,7 +5,6 @@ import { Admin } from "../models/Admin.js";
 import { authenticateAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "default_jwt_secret_change_in_production";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 
 // POST /api/auth/login
@@ -38,7 +37,7 @@ router.post("/login", async (req, res) => {
       role: admin.role,
     };
 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
     res.json({
       token,

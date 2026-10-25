@@ -11,6 +11,8 @@ import CustomerProfile from './pages/CustomerProfile.jsx';
 import Discounts from './pages/Discounts.jsx';
 import Inventory from './pages/Inventory.jsx';
 import Settings from './pages/Settings.jsx';
+import Homepage from './pages/Homepage.jsx';
+import Returns from './pages/Returns.jsx';
 import Login from './pages/Login.jsx';
 import { fetchHealth } from './services/adminApi.js';
 import { useAuth } from './context/AuthContext.jsx';
@@ -82,9 +84,10 @@ export default function App() {
                 <Route path="/customers" element={<Customers />} />
                 <Route path="/customers/:id" element={<CustomerProfile />} />
                 <Route path="/discounts" element={<Discounts />} />
-                <Route path="/returns" element={<Placeholder title="Returns & Refunds" />} />
+                <Route path="/returns" element={<Returns />} />
                 <Route path="/shipping" element={<Placeholder title="Shipping" />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/homepage" element={<Homepage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

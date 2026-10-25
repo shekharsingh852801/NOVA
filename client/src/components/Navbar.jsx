@@ -15,7 +15,7 @@ function isRouteActive(route, section) {
   return pathname === section || pathname.startsWith(`${section}/`);
 }
 
-export default function Navbar({ customer, onLogout, cartCount = 0, wishlistCount = 0, route = "", transparent = false, onNavigate, onSearch, onCart, onWishlist }) {
+export default function Navbar({ customer, content, onLogout, cartCount = 0, wishlistCount = 0, route = "", transparent = false, onNavigate, onSearch, onCart, onWishlist }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -30,6 +30,24 @@ export default function Navbar({ customer, onLogout, cartCount = 0, wishlistCoun
   const mobileFirstRef = useRef(null);
   const closeTimer = useRef(null);
   const mobileDialogRef = useDialogFocus(menuOpen, () => setMenuOpen(false), mobileFirstRef);
+  const menuGroups = content?.shopLinks?.length
+    ? content.shopLinks.reduce((groups, link) => {
+      let group = groups.find((item) => item.title === link.group);
+      if (!group) {
+        group = { title: link.group, links: [] };
+        groups.push(group);
+      }
+      group.links.push([link.label, link.path]);
+      return groups;
+    }, [])
+    : MENU_GROUPS;
+  const mobileShopLinks = content?.shopLinks?.length
+    ? content.shopLinks.map(({ label, path }) => [label, path])
+    : [["Shop all", "shop"], ["New Arrivals", "shop?edit=new-arrivals"], ["Men", "shop?category=Men"], ["Women", "shop?category=Women"], ["Accessories", "shop?category=Accessories"], ["Sale", "sale"]];
+  const homePath = content?.homeHref || "";
+  const collectionsPath = content?.collectionsHref || "collections";
+  const aboutPath = content?.aboutHref || "about";
+  const journalPath = content?.journalHref || "journal";
 
   const navigate = (path) => {
     setMenuOpen(false);
@@ -129,24 +147,24 @@ export default function Navbar({ customer, onLogout, cartCount = 0, wishlistCoun
   return (
     <header ref={navbarRef} className={`navbar ${transparent ? "navbar--overlay" : "navbar--solid"} ${transparent && scrolled ? "navbar--scrolled" : ""}`}>
       <div className="navbar__inner">
-        <a href="#/" className="navbar__logo" onClick={(event) => followLink(event, "")}>NOVA</a>
+        <a href={`#/${homePath}`} className="navbar__logo" onClick={(event) => followLink(event, homePath)}>{content?.brandLabel || "NOVA"}</a>
         <nav className="navbar__links" aria-label="Primary">
-          <a href="#/" className={`navbar__link ${isRouteActive(route, "home") ? "is-active" : ""}`} aria-current={isRouteActive(route, "home") ? "page" : undefined} onClick={(event) => followLink(event, "")}>Home</a>
+          <a href={`#/${homePath}`} className={`navbar__link ${isRouteActive(route, homePath.split("?")[0] || "home") ? "is-active" : ""}`} aria-current={isRouteActive(route, homePath.split("?")[0] || "home") ? "page" : undefined} onClick={(event) => followLink(event, homePath)}>{content?.homeLabel || "Home"}</a>
           <div className="navbar__shop-wrap" onMouseEnter={openShop} onMouseLeave={closeShopSoon} onFocus={openShop} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setShopOpen(false); }}>
-            <button ref={shopTriggerRef} type="button" className={`navbar__link navbar__shop-trigger ${isRouteActive(route, "shop") ? "is-active" : ""}`} aria-haspopup="true" aria-expanded={shopOpen} aria-controls="nova-shop-menu" onClick={() => { setAccountOpen(false); setShopOpen(true); }}>Shop</button>
+            <button ref={shopTriggerRef} type="button" className={`navbar__link navbar__shop-trigger ${isRouteActive(route, "shop") ? "is-active" : ""}`} aria-haspopup="true" aria-expanded={shopOpen} aria-controls="nova-shop-menu" onClick={() => { setAccountOpen(false); setShopOpen(true); }}>{content?.shopLabel || "Shop"}</button>
             <div id="nova-shop-menu" className={`mega-menu ${shopOpen ? "mega-menu--open" : ""}`} aria-hidden={!shopOpen}>
               <nav className="mega-menu__groups" aria-label="Shop categories">
-                {MENU_GROUPS.map((group) => <section className="mega-menu__group" key={group.title}>
+                {menuGroups.map((group) => <section className="mega-menu__group" key={group.title}>
                   <p className="eyebrow eyebrow--light">{group.title}</p>
                   {group.links.map(([label, path]) => <a href={`#/${path}`} key={label} tabIndex={shopOpen ? 0 : -1} onClick={(event) => followLink(event, path)}>{label}<ArrowIcon /></a>)}
                 </section>)}
               </nav>
-              <a href="#/collections/winter-26" tabIndex={shopOpen ? 0 : -1} className="mega-menu__feature" onClick={(event) => followLink(event, "collections/winter-26")}><img src="https://images.unsplash.com/photo-1629131678696-0b56fe341b74?auto=format&fit=crop&w=800&q=85" alt="Winter '26 collection" loading="lazy" /><span><small>THE NEW EDIT</small>Winter '26 <ArrowIcon /></span></a>
+              <a href={`#/${content?.shopFeature?.href || "collections/winter-26"}`} tabIndex={shopOpen ? 0 : -1} className="mega-menu__feature" onClick={(event) => followLink(event, content?.shopFeature?.href || "collections/winter-26")}><img src={content?.shopFeature?.image || "https://images.unsplash.com/photo-1629131678696-0b56fe341b74?auto=format&fit=crop&w=800&q=85"} alt={content?.shopFeature?.alt || "Winter '26 collection"} loading="lazy" /><span><small>{content?.shopFeature?.eyebrow || "THE NEW EDIT"}</small>{content?.shopFeature?.title || "Winter '26"} <ArrowIcon /></span></a>
             </div>
           </div>
-          <a href="#/collections" className={`navbar__link ${isRouteActive(route, "collections") ? "is-active" : ""}`} aria-current={isRouteActive(route, "collections") ? "page" : undefined} onClick={(event) => followLink(event, "collections")}>Collections</a>
-          <a href="#/about" className={`navbar__link ${isRouteActive(route, "about") ? "is-active" : ""}`} aria-current={isRouteActive(route, "about") ? "page" : undefined} onClick={(event) => followLink(event, "about")}>About</a>
-          <a href="#/journal" className={`navbar__link ${isRouteActive(route, "journal") ? "is-active" : ""}`} aria-current={isRouteActive(route, "journal") ? "page" : undefined} onClick={(event) => followLink(event, "journal")}>Journal</a>
+          <a href={`#/${collectionsPath}`} className={`navbar__link ${isRouteActive(route, collectionsPath.split("?")[0]) ? "is-active" : ""}`} aria-current={isRouteActive(route, collectionsPath.split("?")[0]) ? "page" : undefined} onClick={(event) => followLink(event, collectionsPath)}>{content?.collectionsLabel || "Collections"}</a>
+          <a href={`#/${aboutPath}`} className={`navbar__link ${isRouteActive(route, aboutPath.split("?")[0]) ? "is-active" : ""}`} aria-current={isRouteActive(route, aboutPath.split("?")[0]) ? "page" : undefined} onClick={(event) => followLink(event, aboutPath)}>{content?.aboutLabel || "About"}</a>
+          <a href={`#/${journalPath}`} className={`navbar__link ${isRouteActive(route, journalPath.split("?")[0]) ? "is-active" : ""}`} aria-current={isRouteActive(route, journalPath.split("?")[0]) ? "page" : undefined} onClick={(event) => followLink(event, journalPath)}>{content?.journalLabel || "Journal"}</a>
         </nav>
         <div className="navbar__actions">
           <button type="button" className="navbar__icon-btn" aria-label="Search" onClick={goToSearch}><SearchIcon /></button>
@@ -179,15 +197,15 @@ export default function Navbar({ customer, onLogout, cartCount = 0, wishlistCoun
       </div>
       {menuOpen && <div className="mobile-nav-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMenuOpen(false)}>
         <nav ref={mobileDialogRef} id="nova-mobile-menu" className="mobile-nav" role="dialog" aria-modal="true" aria-label="Mobile navigation" tabIndex={-1}>
-          <div className="mobile-nav__head"><a href="#/" className="navbar__logo" onClick={(event) => followLink(event, "")}>NOVA</a><button type="button" className="icon-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}><CloseIcon /></button></div>
-          <a ref={mobileFirstRef} href="#/" className="mobile-nav__link" onClick={(event) => followLink(event, "")}>Home</a>
-          <button type="button" className="mobile-nav__link mobile-nav__shop" aria-expanded={shopOpen} aria-controls="nova-mobile-shop" onClick={() => setShopOpen((open) => !open)}>Shop <span>{shopOpen ? "−" : "+"}</span></button>
+          <div className="mobile-nav__head"><a href={`#/${homePath}`} className="navbar__logo" onClick={(event) => followLink(event, homePath)}>{content?.brandLabel || "NOVA"}</a><button type="button" className="icon-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}><CloseIcon /></button></div>
+          <a ref={mobileFirstRef} href={`#/${homePath}`} className="mobile-nav__link" onClick={(event) => followLink(event, homePath)}>{content?.homeLabel || "Home"}</a>
+          <button type="button" className="mobile-nav__link mobile-nav__shop" aria-expanded={shopOpen} aria-controls="nova-mobile-shop" onClick={() => setShopOpen((open) => !open)}>{content?.shopLabel || "Shop"} <span>{shopOpen ? "−" : "+"}</span></button>
           <div id="nova-mobile-shop" className={`mobile-nav__subnav ${shopOpen ? "is-open" : ""}`} aria-hidden={!shopOpen}>
-            <div className="mobile-nav__subnav-inner">{[ ["Shop all", "shop"], ["New Arrivals", "shop?edit=new-arrivals"], ["Men", "shop?category=Men"], ["Women", "shop?category=Women"], ["Accessories", "shop?category=Accessories"], ["Sale", "sale"] ].map(([label, path]) => <a href={`#/${path}`} tabIndex={shopOpen ? 0 : -1} key={label} onClick={(event) => followLink(event, path)}>{label}</a>)}</div>
+            <div className="mobile-nav__subnav-inner">{mobileShopLinks.map(([label, path]) => <a href={`#/${path}`} tabIndex={shopOpen ? 0 : -1} key={`${label}-${path}`} onClick={(event) => followLink(event, path)}>{label}</a>)}</div>
           </div>
-          <a href="#/collections" className="mobile-nav__link" onClick={(event) => followLink(event, "collections")}>Collections</a>
-          <a href="#/journal" className="mobile-nav__link" onClick={(event) => followLink(event, "journal")}>Journal</a>
-          <a href="#/about" className="mobile-nav__link" onClick={(event) => followLink(event, "about")}>About</a>
+          <a href={`#/${collectionsPath}`} className="mobile-nav__link" onClick={(event) => followLink(event, collectionsPath)}>{content?.collectionsLabel || "Collections"}</a>
+          <a href={`#/${journalPath}`} className="mobile-nav__link" onClick={(event) => followLink(event, journalPath)}>{content?.journalLabel || "Journal"}</a>
+          <a href={`#/${aboutPath}`} className="mobile-nav__link" onClick={(event) => followLink(event, aboutPath)}>{content?.aboutLabel || "About"}</a>
           <div className="mobile-nav__secondary"><button type="button" onClick={showAccount}>Account</button><a href="#/wishlist" onClick={(event) => followLink(event, "wishlist")}>Wishlist{wishlistCount ? ` (${wishlistCount})` : ""}</a><a href="#/contact" onClick={(event) => followLink(event, "contact")}>Support</a></div>
           <button type="button" className="mobile-nav__search" onClick={goToSearch}><SearchIcon /> Search NOVA</button>
         </nav>

@@ -15,7 +15,7 @@ import Footer from "./components/Footer.jsx";
 
 import { StoreProvider, useStore } from "./context/StoreContext.jsx";
 import { readStoredJson, writeStoredJson } from "./utils/storage.js";
-import { createOrder, isApiConfigured, syncCart, fetchCustomerOrders } from "./api/api.js";
+import { createOrder, isApiConfigured, syncCart, fetchCustomerOrders, fetchHomepage, fetchHomepagePreview } from "./api/api.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import AuthPage from "./components/AuthPage.jsx";
 import ResetPassword from "./components/ResetPassword.jsx";
@@ -47,6 +47,10 @@ import {
   WishlistPage,
   collections,
 } from "./components/Commerce.jsx";
+import AboutPage from "./components/AboutPage.jsx";
+import WhatsAppFloat from "./components/WhatsAppFloat.jsx";
+import useDocumentMeta from "./utils/useDocumentMeta.js";
+import { initAnalytics } from "./utils/analytics.js";
 
 function currentRoute() {
   return window.location.hash.startsWith("#/") ? window.location.hash.slice(2) : "";
@@ -61,7 +65,7 @@ function Storefront() {
       return null;
     }
   });
-  
+
   const handleLogout = () => {
     localStorage.removeItem("nova_customer_token");
     localStorage.removeItem("nova_customer");
@@ -73,6 +77,26 @@ function Storefront() {
   const [route, setRoute] = useState(currentRoute);
   const [showPagePreloader] = useState(() => currentRoute() === "");
   const routeRef = useRef(route);
+
+  const pathname = route.split("?")[0];
+
+  useEffect(() => { initAnalytics(); }, []);
+
+  const metaByRoute = {
+    "": { title: "NOVA — Modern Fits for a Better Tomorrow", description: "Considered streetwear made from sustainable fabrics. Free shipping over $75, easy 30-day returns." },
+    shop: { title: "Shop All — NOVA", description: "Browse every NOVA piece — tops, bottoms, outerwear and accessories." },
+    sale: { title: "Sale — NOVA", description: "Seasonal markdowns on NOVA essentials. Limited sizes." },
+    collections: { title: "Collections — NOVA", description: "Explore NOVA collections and curated edits." },
+    journal: { title: "Journal — NOVA", description: "Style notes, fabric stories and behind-the-scenes from the NOVA studio." },
+    about: { title: "Our Story — NOVA", description: "NOVA is more than clothing — real stories, sustainable materials, a better future." },
+    contact: { title: "Contact — NOVA", description: "Questions about an order, sizing or returns? Talk to the NOVA team." },
+    wishlist: { title: "Wishlist — NOVA", description: "Pieces you've saved for later." },
+    cart: { title: "Your Bag — NOVA", description: "Review your bag and check out." },
+    checkout: { title: "Checkout — NOVA", description: "Secure checkout with NOVA." },
+    auth: { title: "Sign in — NOVA", description: "Sign in or create your NOVA account." },
+  };
+  const routeMeta = metaByRoute[pathname] || { title: "NOVA — Modern Fits for a Better Tomorrow", description: "Considered streetwear made from sustainable fabrics." };
+  useDocumentMeta({ ...routeMeta, path: pathname === "" ? "/" : `/${pathname}` });
   const routeScrollPositions = useRef(new Map());
   const [cartOpen, setCartOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -83,6 +107,65 @@ function Storefront() {
   const [lookOpen, setLookOpen] = useState(false);
   const [filmOpen, setFilmOpen] = useState(false);
   const [latestOrder, setLatestOrder] = useState(null);
+  const [homepageContent, setHomepageContent] = useState(null);
+  const [homepagePreviewError, setHomepagePreviewError] = useState("");
+  const homepageUrlParams = new URLSearchParams(window.location.search);
+  const homepagePreviewToken = homepageUrlParams.get("homepagePreview");
+  const homepageSectionPreview = homepagePreviewToken ? homepageUrlParams.get("section") : null;
+
+  useEffect(() => {
+    let active = true;
+    const loadHomepage = homepagePreviewToken
+      ? fetchHomepagePreview(homepagePreviewToken)
+      : fetchHomepage();
+    loadHomepage.then((result) => {
+      if (active) setHomepageContent(result.content);
+    }).catch((error) => {
+      if (!active) return;
+      if (homepagePreviewToken) {
+        setHomepagePreviewError(error.message || "This homepage preview could not be loaded.");
+      } else {
+        console.error("Failed to load published homepage content:", error);
+      }
+    });
+    return () => { active = false; };
+  }, [homepagePreviewToken]);
+
+  useEffect(() => {
+    if (!homepageSectionPreview || !homepagePreviewToken || (!homepageContent && !homepagePreviewError)) return undefined;
+
+    let observer;
+    const getPreviewSection = () => homepageSectionPreview === "footer"
+      ? document.querySelector(".footer")
+      : document.querySelector(".home-page--section-preview > section");
+    let section = getPreviewSection();
+
+    const reportHeight = () => {
+      section = getPreviewSection();
+      const height = section ? Math.ceil(section.getBoundingClientRect().height) : 180;
+      window.parent.postMessage({ type: "nova-homepage-section-preview-size", height }, "*");
+    };
+    const handlePreviewRequest = (event) => {
+      if (event.source === window.parent && event.data?.type === "nova-homepage-section-preview-request-size") {
+        reportHeight();
+      }
+    };
+
+    if (section && "ResizeObserver" in window) {
+      observer = new ResizeObserver(reportHeight);
+      observer.observe(section);
+    }
+    window.addEventListener("message", handlePreviewRequest);
+    reportHeight();
+    document.fonts?.ready.then(reportHeight);
+    window.addEventListener("load", reportHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("message", handlePreviewRequest);
+      window.removeEventListener("load", reportHeight);
+    };
+  }, [homepageContent, homepagePreviewError, homepagePreviewToken, homepageSectionPreview]);
 
   useEffect(() => {
     if (customer) {
@@ -158,7 +241,7 @@ function Storefront() {
     setFilmOpen(false);
   };
 
-  const [pathname, queryString = ""] = route.split("?");
+  const [, queryString = ""] = route.split("?");
   const params = new URLSearchParams(queryString);
   const category = params.get("category") || (pathname === "sale" ? "Sale" : "All");
   const query = params.get("q") || "";
@@ -170,6 +253,48 @@ function Storefront() {
   const articleSlug = pathname.startsWith("journal/") ? pathname.slice("journal/".length) : "";
   const articlePage = pathname === "journal" || Boolean(articleSlug);
 
+  const renderHomepageSection = (section) => {
+    if (!section.enabled) return null;
+    switch (section.id) {
+      case "hero":
+        return <Hero key={section.id} content={section} onWatchVideo={() => setFilmOpen(true)} />;
+      case "featureBar":
+        return <FeatureBar key={section.id} content={section} />;
+      case "newArrivals": {
+        const selectedProducts = section.productSlugs?.length
+          ? section.productSlugs.map((slug) => products.find((item) => item.slug === slug)).filter(Boolean)
+          : products.filter((item) => item.newArrival || item.featured).slice(0, 5);
+        return <NewArrivals
+          key={section.id}
+          products={selectedProducts}
+          loading={productsLoading}
+          onQuickView={openQuickView}
+          onViewAll={() => navigate(section.buttonHref || "shop?edit=new-arrivals")}
+          content={section}
+        />;
+      }
+      case "categories":
+        return <CategoryGrid
+          key={section.id}
+          content={section}
+          onExplore={() => navigate(section.buttonHref || "shop")}
+          onCategorySelect={(item) => navigate(item === "Sale" ? "sale" : `shop?category=${encodeURIComponent(item)}`)}
+        />;
+      case "brandStory":
+        return <BrandStory key={section.id} content={section} />;
+      case "sustainability":
+        return <Sustainability key={section.id} content={section} />;
+      case "testimonials":
+        return <Testimonials key={section.id} content={section} />;
+      case "lookbook":
+        return <Lookbook key={section.id} content={section} onShopLook={() => setLookOpen(true)} />;
+      case "newsletter":
+        return <Newsletter key={section.id} content={section} />;
+      default:
+        return null;
+    }
+  };
+
   useEffect(() => {
     const section = pathname === "" ? params.get("section") : null;
     if (!section) return undefined;
@@ -178,6 +303,7 @@ function Storefront() {
   }, [pathname, queryString]);
 
   useEffect(() => {
+    const pendingSelector = ".reveal-up:not(.is-revealed), .reveal-mask:not(.is-revealed), .reveal-clip:not(.is-revealed)";
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -185,10 +311,42 @@ function Storefront() {
         }
       });
     }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
-    
-    document.querySelectorAll(".reveal-up").forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [pathname]);
+
+    document.querySelectorAll(pendingSelector).forEach((el) => observer.observe(el));
+
+    // Fallback for embedded webviews where IntersectionObserver never fires:
+    // sweep with getBoundingClientRect on scroll/resize/interval instead.
+    let raf = 0;
+    const sweep = () => {
+      raf = 0;
+      document.querySelectorAll(pendingSelector).forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight - 40 && rect.bottom > 40) {
+          el.classList.add("is-revealed");
+          observer.unobserve(el);
+        }
+      });
+    };
+    const requestSweep = () => {
+      if (!raf) raf = window.requestAnimationFrame(sweep);
+    };
+    window.addEventListener("scroll", requestSweep, { passive: true });
+    window.addEventListener("resize", requestSweep);
+    const sweepTimer = window.setTimeout(sweep, 600);
+    const sweepInterval = window.setInterval(() => {
+      sweep();
+      if (!document.querySelector(pendingSelector)) window.clearInterval(sweepInterval);
+    }, 900);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", requestSweep);
+      window.removeEventListener("resize", requestSweep);
+      window.clearTimeout(sweepTimer);
+      window.clearInterval(sweepInterval);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, [pathname, homepageContent, productsLoading, products]);
 
   const openQuickView = (item) => {
     if (item?.look) {
@@ -203,18 +361,19 @@ function Storefront() {
     setSizeOpen(true);
   };
 
-  const placeOrder = async ({ form, lines, subtotal, shipping }) => {
+  const placeOrder = async ({ form, lines, subtotal, shipping, discount, couponCode }) => {
     const orderRequest = isApiConfigured() ? await createOrder({
       customer: { name: form.name, email: form.email, phone: form.phone },
       shippingAddress: { address: form.address, city: form.city, state: form.state, postal: form.postal },
       paymentMethod: form.payment === "Cash on delivery" ? "cash_on_delivery" : "pay_on_delivery",
       items: lines.map((line) => ({ slug: line.product.slug, size: line.size, color: line.color, quantity: line.quantity })),
+      couponCode: couponCode || undefined,
     }) : null;
     const order = {
       id: orderRequest?.order.orderNumber || `NV-${Date.now().toString().slice(-7)}`,
       email: form.email,
       name: form.name,
-      total: orderRequest?.order.total ?? subtotal + shipping,
+      total: orderRequest?.order.total ?? Math.max(0, subtotal + shipping - (discount || 0)),
       lines,
       status: orderRequest?.order.status || "Confirmed",
       progress: orderRequest?.order.progress || 2,
@@ -236,9 +395,10 @@ function Storefront() {
 
   return (
     <>
-      {showPagePreloader && <PagePreloader />}
-      {pathname !== "auth" && (
+      {!homepageSectionPreview && showPagePreloader && <PagePreloader />}
+      {!homepageSectionPreview && pathname !== "auth" && (
         <>
+          {pathname === "" && homepagePreviewToken && homepageContent && <div className="homepage-preview-banner">Draft preview — not visible to shoppers</div>}
           <AnnouncementBar />
           <Navbar
             customer={customer}
@@ -256,21 +416,33 @@ function Storefront() {
       )}
       <ErrorBoundary>
         {pathname === "" ? (
-        <main id="top" className="home-page">
-          <Hero onWatchVideo={() => setFilmOpen(true)} />
-          <FeatureBar />
-          <NewArrivals
-            products={products.filter((item) => item.newArrival || item.featured).slice(0, 5)}
-            loading={productsLoading}
-            onQuickView={openQuickView}
-            onViewAll={() => navigate("shop?edit=new-arrivals")}
-          />
-          <CategoryGrid onCategorySelect={(item) => navigate(item === "Sale" ? "sale" : `shop?category=${item}`)} />
-          <BrandStory />
-          <Sustainability />
-          <Testimonials />
-          <Lookbook onShopLook={() => setLookOpen(true)} />
-          <Newsletter />
+        <main id="top" className={`home-page${homepageSectionPreview ? " home-page--section-preview" : ""}`}>
+          {homepagePreviewToken && homepagePreviewError ? (
+            <p className="homepage-preview-message" role="alert">{homepagePreviewError}</p>
+          ) : homepagePreviewToken && !homepageContent ? (
+            <p className="homepage-preview-message" role="status">Loading draft preview…</p>
+          ) : homepageContent ? (
+            homepageContent.sections
+              .filter((section) => !homepageSectionPreview || section.id === homepageSectionPreview)
+              .map(renderHomepageSection)
+          ) : (
+            <>
+              <Hero onWatchVideo={() => setFilmOpen(true)} />
+              <FeatureBar />
+              <NewArrivals
+                products={products.filter((item) => item.newArrival || item.featured).slice(0, 5)}
+                loading={productsLoading}
+                onQuickView={openQuickView}
+                onViewAll={() => navigate("shop?edit=new-arrivals")}
+              />
+              <CategoryGrid onCategorySelect={(item) => navigate(item === "Sale" ? "sale" : `shop?category=${item}`)} />
+              <BrandStory />
+              <Sustainability />
+              <Testimonials />
+              <Lookbook onShopLook={() => setLookOpen(true)} />
+              <Newsletter />
+            </>
+          )}
         </main>
       ) : pathname === "search" ? (
         <ShopPage category="All" query={query} sortBy={sortBy} routePath={pathname} queryString={queryString} onQuickView={openQuickView} />
@@ -297,13 +469,7 @@ function Storefront() {
       ) : articlePage ? (
         <JournalPage articleSlug={articleSlug} />
       ) : pathname === "about" ? (
-        <EditorialPage
-          title="Wear what stays."
-          eyebrow="A little about NOVA"
-          image="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1800&q=90"
-          copy="NOVA is a considered wardrobe for the everyday. We make enduring pieces with thoughtful materials, useful details, and room for your own point of view."
-          onNavigate={navigate}
-        />
+        <AboutPage onNavigate={navigate} />
       ) : pathname === "contact" ? (
         <ContactPage />
       ) : pathname === "account" ? (
@@ -334,7 +500,9 @@ function Storefront() {
         />
       )}
       </ErrorBoundary>
-      {pathname !== "auth" && <Footer />}
+      {(!homepageSectionPreview || homepageSectionPreview === "footer") && pathname !== "auth" && (
+        <Footer content={homepageContent?.footer} />
+      )}
 
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} onNavigate={navigate} />
       <SearchOverlay
@@ -363,6 +531,7 @@ function Storefront() {
       />
       <ShopTheLook open={lookOpen} onClose={() => setLookOpen(false)} onOpenCart={() => setCartOpen(true)} />
       <FilmModal open={filmOpen} onClose={() => setFilmOpen(false)} />
+      <WhatsAppFloat />
       <GlobalToast toast={toast} />
     </>
   );

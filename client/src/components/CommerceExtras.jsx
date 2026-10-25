@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../context/StoreContext.jsx";
-import { createBackInStockRequest, createContactRequest, isApiConfigured, submitReview } from "../api/api.js";
+import { createBackInStockRequest, createContactRequest, createReturnRequest, fetchCustomerReturnRequests, isApiConfigured, submitReview } from "../api/api.js";
+import { readStoredJson } from "../utils/storage.js";
+import { computeCouponDiscount } from "../utils/coupons.js";
 import { ArrowIcon, CloseIcon, StarIcon } from "./Icons.jsx";
 
 function readProfile() {
@@ -17,21 +19,39 @@ const formatPrice = (value) => `$${Number(value || 0).toFixed(2)}`;
 const money = formatPrice;
 
 export function CheckoutPage({ onPlaceOrder }) {
-  const { cart, addresses, products } = useStore();
+  const { cart, addresses, products, coupon, applyCoupon, clearCoupon } = useStore();
   const profile = readProfile();
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [placing, setPlacing] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [couponError, setCouponError] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
   const [form, setForm] = useState({ name: profile.name || "", email: profile.email || "", phone: "", address: "", city: "", state: "", postal: "", payment: "Cash on delivery" });
   const lines = cart.map((line) => ({ ...line, product: products.find((product) => product.id === line.id) })).filter((line) => line.product);
   const subtotal = lines.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const shipping = subtotal >= 75 || subtotal === 0 ? 0 : 8;
+  const discount = coupon ? computeCouponDiscount(coupon, subtotal, shipping) : 0;
+  const total = Math.max(0, subtotal + shipping - discount);
   const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   const useAddress = (event) => {
     const address = addresses.find((item) => item.id === event.target.value);
     setSelectedAddress(event.target.value);
     if (address) setForm((current) => ({ ...current, name: current.name || address.recipient, address: address.address, city: address.city, state: address.state, postal: address.postal }));
+  };
+  const tryApplyCoupon = async () => {
+    if (!couponInput.trim() || couponBusy) return;
+    setCouponBusy(true);
+    setCouponError("");
+    try {
+      await applyCoupon(couponInput, subtotal);
+      setCouponInput("");
+    } catch (err) {
+      setCouponError(err.message || "This coupon could not be applied.");
+    } finally {
+      setCouponBusy(false);
+    }
   };
   const continueStep = () => {
     if (step === 0 && (!form.name.trim() || !form.email.trim() || !form.phone.trim())) { setError("Please complete your contact details."); return; }
@@ -43,13 +63,20 @@ export function CheckoutPage({ onPlaceOrder }) {
     setError("");
     setPlacing(true);
     try {
-      await onPlaceOrder({ form, lines, subtotal, shipping });
+      await onPlaceOrder({ form, lines, subtotal, shipping, discount, couponCode: coupon?.code });
+      clearCoupon();
     } catch (submitError) {
       setError(submitError.message || "We couldn't place the order. Please try again.");
     } finally {
       setPlacing(false);
     }
   };
+
+  useEffect(() => {
+    if (step === 0 && lines.length) {
+      import("../utils/analytics.js").then(({ trackBeginCheckout }) => trackBeginCheckout(subtotal, lines)).catch(() => {});
+    }
+  }, [step, lines.length, subtotal]);
 
   return <main className="commerce-page checkout-page">
     <p className="eyebrow eyebrow--dark">NOVA / CHECKOUT</p>
@@ -81,13 +108,31 @@ export function CheckoutPage({ onPlaceOrder }) {
           <p className="checkout-note">Payment: {form.payment}. {isApiConfigured() ? "The order will be recorded with payment pending; no online payment is processed." : "This creates a local demo order only; no payment will be charged."}</p>
         </>}
         {error && <p className="form-error" role="alert">{error}</p>}
-        {step < 3 ? <button className="btn btn--dark checkout-continue" type="button" onClick={continueStep}>Continue to {step === 0 ? "shipping" : step === 1 ? "payment" : "review"} <ArrowIcon /></button> : <button className="btn btn--dark checkout-continue" type="button" disabled={!lines.length || placing} onClick={submitOrder}>{placing ? "Placing order…" : `${isApiConfigured() ? "Place order" : "Place demo order"} · ${formatPrice(subtotal + shipping)}`} <ArrowIcon /></button>}
+        {step < 3 ? <button className="btn btn--dark checkout-continue" type="button" onClick={continueStep}>Continue to {step === 0 ? "shipping" : step === 1 ? "payment" : "review"} <ArrowIcon /></button> : <button className="btn btn--dark checkout-continue" type="button" disabled={!lines.length || placing} onClick={submitOrder}>{placing ? "Placing order…" : `${isApiConfigured() ? "Place order" : "Place demo order"} · ${formatPrice(total)}`} <ArrowIcon /></button>}
       </form>
       <aside className="checkout-summary">
         <div className="checkout-summary__heading"><h2>Your edit</h2><span>{lines.reduce((sum, line) => sum + line.quantity, 0)} pieces</span></div>
         {lines.map(({ product, size, color, quantity }) => <div className="checkout-summary__item" key={`${product.id}-${size}-${color}`}><img src={product.images[0]} alt={product.name} /><div><span>{product.name}</span><small>Size {size} · {color} · Qty {quantity}</small></div><strong>{formatPrice(product.price * quantity)}</strong></div>)}
         {!lines.length && <p className="muted-copy">Your bag is empty.</p>}
-        <div className="checkout-summary__totals"><p><span>Subtotal</span><span>{formatPrice(subtotal)}</span></p><p><span>Shipping</span><span>{shipping ? formatPrice(shipping) : "Complimentary"}</span></p><p className="checkout-summary__total"><strong>Total</strong><strong>{formatPrice(subtotal + shipping)}</strong></p></div>
+        {coupon ? (
+          <div className="coupon-box coupon-box--applied">
+            <span className="coupon-box__label">Code <strong>{coupon.code}</strong> applied{coupon.type === "percent" ? ` — ${coupon.value}% off` : coupon.type === "fixed" ? ` — ${formatPrice(coupon.value)} off` : " — free shipping"}</span>
+            <button type="button" className="text-action" onClick={clearCoupon}>Remove</button>
+          </div>
+        ) : (
+          <div className="coupon-box">
+            <input
+              value={couponInput}
+              onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+              placeholder="Coupon code (e.g. WELCOME15)"
+              aria-label="Coupon code"
+              onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); tryApplyCoupon(); } }}
+            />
+            <button type="button" className="btn btn--dark" disabled={!couponInput.trim() || couponBusy} onClick={tryApplyCoupon}>{couponBusy ? "Checking…" : "Apply"}</button>
+          </div>
+        )}
+        {couponError && <p className="form-error" role="alert">{couponError}</p>}
+        <div className="checkout-summary__totals"><p><span>Subtotal</span><span>{formatPrice(subtotal)}</span></p>{discount > 0 && <p className="checkout-summary__discount"><span>Coupon discount</span><span>−{formatPrice(discount)}</span></p>}<p><span>Shipping</span><span>{coupon?.type === "free_shipping" && shipping ? "Complimentary" : shipping ? formatPrice(shipping) : "Complimentary"}</span></p><p className="checkout-summary__total"><strong>Total</strong><strong>{formatPrice(total)}</strong></p></div>
       </aside>
     </div>
   </main>;
@@ -115,7 +160,46 @@ function getTrackingSummary(order = {}) {
 
 export function OrdersPage({ orders = [], onNavigate }) {
   const { products } = useStore();
+  const customerToken = localStorage.getItem("nova_customer_token");
+  const [returnRequests, setReturnRequests] = useState([]);
+  const [returnOrderId, setReturnOrderId] = useState("");
+  const [returnReason, setReturnReason] = useState("changed_mind");
+  const [returnDetails, setReturnDetails] = useState("");
+  const [returnError, setReturnError] = useState("");
+  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [returnLoading, setReturnLoading] = useState(Boolean(customerToken));
   const sortedOrders = [...orders].sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
+
+  useEffect(() => {
+    if (!customerToken) return;
+    let active = true;
+    fetchCustomerReturnRequests(customerToken)
+      .then((data) => {
+        if (active && Array.isArray(data)) setReturnRequests(data);
+      })
+      .catch((error) => {
+        if (active) setReturnError(error.message || "Return requests could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setReturnLoading(false);
+      });
+    return () => { active = false; };
+  }, [customerToken]);
+
+  const submitReturnRequest = async (order) => {
+    setReturnError("");
+    setReturnSubmitting(true);
+    try {
+      const created = await createReturnRequest(customerToken, order.id, returnReason, returnDetails);
+      setReturnRequests((current) => [{ ...created, order_id: String(created.order || order.id) }, ...current]);
+      setReturnOrderId("");
+      setReturnDetails("");
+    } catch (error) {
+      setReturnError(error.message || "Your return request could not be submitted.");
+    } finally {
+      setReturnSubmitting(false);
+    }
+  };
 
   return (
     <main className="commerce-page account-page">
@@ -137,25 +221,71 @@ export function OrdersPage({ orders = [], onNavigate }) {
               const firstItem = (order.lines || [])[0];
               const product = firstItem?.product || products.find((item) => item.id === firstItem?.id) || null;
               const tracking = getTrackingSummary(order);
+              const orderReference = order.order_number || order.id;
+              const returnRequest = returnRequests.find((request) => request.order_id === String(order.id));
+              const eligibleForReturn = order.status === "delivered";
 
               return (
-                <article className="account-order" key={order.id} style={{ display: "grid", gridTemplateColumns: "88px 1fr auto", gap: "18px", alignItems: "center", padding: "18px 0" }}>
-                  <img src={product?.images?.[0] || products[0]?.images[0]} alt={product?.name || "Order item"} style={{ width: "88px", height: "110px", objectFit: "cover" }} />
-                  <div style={{ display: "grid", gap: "6px" }}>
-                    <strong style={{ fontSize: "12px" }}>#{order.id}</strong>
-                    <span style={{ color: "var(--muted-on-light)", fontSize: "11px" }}>{formatOrderDate(order.createdAt || order.date || new Date())}</span>
-                    <span style={{ fontSize: "11px" }}>{itemCount} item{itemCount === 1 ? "" : "s"} · {order.status || tracking.label}</span>
-                  </div>
-                  <div style={{ display: "grid", justifyItems: "end", gap: "10px" }}>
-                    <strong style={{ fontSize: "12px" }}>{money(order.total || 0)}</strong>
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <button type="button" className="text-action" onClick={() => onNavigate(`account/orders/${order.id}`)}>View details</button>
-                      <button type="button" className="text-action" onClick={() => onNavigate("tracking")}>Track order</button>
+                <article key={order.id} style={{ borderBottom: "1px solid var(--line-on-light)", padding: "18px 0" }}>
+                  <div className="account-order" style={{ display: "grid", gridTemplateColumns: "88px 1fr auto", gap: "18px", alignItems: "center" }}>
+                    <img src={product?.images?.[0] || products[0]?.images[0]} alt={product?.name || "Order item"} style={{ width: "88px", height: "110px", objectFit: "cover" }} />
+                    <div style={{ display: "grid", gap: "6px" }}>
+                      <strong style={{ fontSize: "12px" }}>#{orderReference}</strong>
+                      <span style={{ color: "var(--muted-on-light)", fontSize: "11px" }}>{formatOrderDate(order.createdAt || order.date || new Date())}</span>
+                      <span style={{ fontSize: "11px" }}>{itemCount} item{itemCount === 1 ? "" : "s"} · {order.status || tracking.label}</span>
+                    </div>
+                    <div style={{ display: "grid", justifyItems: "end", gap: "10px" }}>
+                      <strong style={{ fontSize: "12px" }}>{money(order.total || 0)}</strong>
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "end" }}>
+                        <button type="button" className="text-action" onClick={() => onNavigate(`account/orders/${order.id}`)}>View details</button>
+                        <button type="button" className="text-action" onClick={() => onNavigate("tracking")}>Track order</button>
+                      </div>
                     </div>
                   </div>
+                  {returnRequest ? (
+                    <p role="status" style={{ margin: "12px 0 0 106px", fontSize: "12px" }}>
+                      Return request: <strong>{returnRequest.status}</strong>
+                    </p>
+                  ) : eligibleForReturn && customerToken ? (
+                    <div style={{ margin: "14px 0 0 106px" }}>
+                      {returnOrderId === String(order.id) ? (
+                        <form onSubmit={(event) => { event.preventDefault(); submitReturnRequest(order); }} style={{ display: "grid", gap: "10px", maxWidth: "480px" }}>
+                          <label>
+                            Reason for return
+                            <select value={returnReason} onChange={(event) => setReturnReason(event.target.value)}>
+                              <option value="damaged">Item arrived damaged</option>
+                              <option value="wrong_item">Wrong item received</option>
+                              <option value="quality_issue">Quality issue</option>
+                              <option value="changed_mind">Changed my mind</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </label>
+                          <label>
+                            Additional details (optional)
+                            <textarea rows="3" maxLength="1000" value={returnDetails} onChange={(event) => setReturnDetails(event.target.value)} />
+                          </label>
+                          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                            <button className="btn btn--dark" type="submit" disabled={returnSubmitting || returnLoading}>
+                              {returnSubmitting ? "Submitting…" : "Submit return request"}
+                            </button>
+                            <button className="text-action" type="button" onClick={() => { setReturnOrderId(""); setReturnError(""); }}>Cancel</button>
+                          </div>
+                        </form>
+                      ) : (
+                        <button type="button" className="text-action" disabled={returnLoading} onClick={() => { setReturnOrderId(String(order.id)); setReturnError(""); }}>
+                          Request a return
+                        </button>
+                      )}
+                    </div>
+                  ) : eligibleForReturn ? (
+                    <p style={{ margin: "12px 0 0 106px", fontSize: "12px" }}>
+                      <button type="button" className="text-action" onClick={() => onNavigate("auth")}>Sign in to request a return</button>
+                    </p>
+                  ) : null}
                 </article>
               );
             })}
+            {returnError && <p role="alert" style={{ color: "#a33", margin: "12px 0" }}>{returnError}</p>}
           </div>
         </div>
       ) : (

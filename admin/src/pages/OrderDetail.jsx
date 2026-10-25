@@ -79,7 +79,7 @@ export default function OrderDetail() {
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button type="button" className="ghost-button" onClick={printInvoice}>Print Invoice</button>
-            <button type="button" className="ghost-button">Refund</button>
+            <button type="button" className="ghost-button" onClick={() => navigate('/returns')}>Manage Returns</button>
           </div>
         </div>
         <p style={{ color: 'var(--muted-on-dark)', marginTop: '-12px' }}>{dateFormatted}</p>

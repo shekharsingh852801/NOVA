@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { fetchTestimonials } from "../api/api.js";
 import { fallbackTestimonials } from "../data/testimonials.js";
 import { ChevronIcon, StarIcon } from "./Icons.jsx";
+import SplitHeading from "./SplitHeading.jsx";
 
-export default function Testimonials() {
+export default function Testimonials({ content }) {
   const [testimonials, setTestimonials] = useState(fallbackTestimonials);
   const trackRef = useRef(null);
+  const pausedRef = useRef(false);
 
   useEffect(() => {
+    if (content?.items) return undefined;
     let active = true;
     fetchTestimonials()
       .then((data) => {
@@ -17,34 +20,78 @@ export default function Testimonials() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [content]);
+
+  const visibleTestimonials = content?.items || testimonials;
 
   const scroll = (dir) => {
     const track = trackRef.current;
-    if (!track) return;
-    track.scrollBy({ left: dir * (track.clientWidth * 0.8), behavior: "smooth" });
+    const card = track?.firstElementChild;
+    if (!track || !card || visibleTestimonials.length < 2) return;
+
+    const gap = Number.parseFloat(window.getComputedStyle(track).columnGap) || 0;
+    const step = card.getBoundingClientRect().width + gap;
+    const copyWidth = step * visibleTestimonials.length;
+
+    if (dir > 0 && track.scrollLeft >= copyWidth - 1) {
+      track.scrollTo({ left: 0, behavior: "instant" });
+    } else if (dir < 0 && track.scrollLeft <= 1) {
+      track.scrollTo({ left: copyWidth, behavior: "instant" });
+    }
+
+    track.scrollBy({ left: dir * step, behavior: "smooth" });
   };
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden && !pausedRef.current) scroll(1);
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, [visibleTestimonials, scroll]);
+
   return (
-    <section className="testimonials">
-      <div className="section-header testimonials__intro">
+    <section
+      className="testimonials"
+      onMouseEnter={() => { pausedRef.current = true; }}
+      onMouseLeave={() => { pausedRef.current = false; }}
+      onFocus={() => { pausedRef.current = true; }}
+      onBlur={() => { pausedRef.current = false; }}
+    >
+      <div className="testimonials__intro">
         <div>
-          <p className="eyebrow eyebrow--light reveal-up">Real Stories</p>
-          <h2 className="section-heading section-heading--light reveal-up stagger-1">Loved by Our Community</h2>
-        </div>
-        <div className="testimonials__nav">
-          <button aria-label="Previous testimonials" onClick={() => scroll(-1)}>
-            <ChevronIcon direction="left" />
-          </button>
-          <button aria-label="Next testimonials" onClick={() => scroll(1)}>
-            <ChevronIcon direction="right" />
-          </button>
+          <p className="eyebrow eyebrow--light reveal-up">{content?.eyebrow || "Real Stories"}</p>
+          <SplitHeading className="section-heading section-heading--light">{content?.heading || "Loved by Our Community"}</SplitHeading>
         </div>
       </div>
 
-      <div className="testimonials__track reveal-up stagger-2" ref={trackRef}>
-        {testimonials.map((t) => (
-          <article className="testimonial-card" key={t._id}>
+      <div className="testimonials__nav" aria-label="Testimonial navigation">
+        <button
+          aria-label="Previous testimonials"
+          aria-controls="testimonials-track"
+          onClick={() => scroll(-1)}
+        >
+          <ChevronIcon direction="left" />
+        </button>
+        <button
+          aria-label="Next testimonials"
+          aria-controls="testimonials-track"
+          onClick={() => scroll(1)}
+        >
+          <ChevronIcon direction="right" />
+        </button>
+      </div>
+
+      <div
+        className="testimonials__track reveal-up stagger-2"
+        id="testimonials-track"
+        ref={trackRef}
+        tabIndex={0}
+        aria-label="Customer reviews"
+        role="region"
+      >
+        {[...visibleTestimonials, ...visibleTestimonials, ...visibleTestimonials].map((t, index) => (
+          <article className="testimonial-card" key={`${t._id || t.name}-${index}`}>
             <div className="testimonial-card__head">
               <img src={t.avatar} alt="" className="testimonial-card__avatar" />
               <div>

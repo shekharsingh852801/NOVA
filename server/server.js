@@ -1,13 +1,15 @@
-import dotenv from "dotenv";
+import "dotenv/config";
 import { closeDB, connectDB } from "./config/db.js";
 import { createApp } from "./app.js";
-
-dotenv.config();
 
 const PORT = process.env.PORT || 5001;
 const app = createApp();
 
 async function startServer() {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET must be configured before starting the server");
+  }
+
   await connectDB();
   const server = app.listen(PORT, () => {
     console.log(`NOVA API running on http://localhost:${PORT}`);

@@ -41,8 +41,25 @@ export default function PagePreloader() {
       if (finished) return;
       finished = true;
       restoreScroll();
+      // If the intro timeline stalled mid-flight, its inline hero styles would
+      // keep the hero invisible — clear them so CSS defaults take over.
+      if (heroContent) {
+        heroContent.style.opacity = "";
+        heroContent.style.visibility = "";
+        heroContent.style.transform = "";
+      }
+      if (heroImage) {
+        heroImage.style.opacity = "";
+        heroImage.style.visibility = "";
+        heroImage.style.filter = "";
+        heroImage.style.transform = "";
+      }
       setVisible(false);
     };
+
+    // Safety net: if the GSAP timeline ever stalls (suspended webview, slow
+    // device), never leave shoppers locked behind the preloader.
+    const safetyTimeout = window.setTimeout(finish, 4000);
 
     html.style.overflow = "hidden";
     body.style.overflow = "hidden";
@@ -138,6 +155,7 @@ export default function PagePreloader() {
       disposed = true;
       if (imageTimeout) window.clearTimeout(imageTimeout);
       if (shutterDelayTimeout) window.clearTimeout(shutterDelayTimeout);
+      if (safetyTimeout) window.clearTimeout(safetyTimeout);
       if (heroImage && onImageLoad) heroImage.removeEventListener("load", onImageLoad);
       if (heroImage && onImageError) heroImage.removeEventListener("error", onImageError);
       resolveImageReady?.();

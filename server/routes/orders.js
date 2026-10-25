@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
+import { Coupon } from "../models/Coupon.js";
+import { resolveCoupon } from "./coupons.js";
 import { authenticateAdmin } from "../middleware/auth.js";
 import mongoose from "mongoose";
 
@@ -40,6 +42,7 @@ const orderSchema = z.object({
     color: z.string().trim().min(1, "Color is required"),
     quantity: z.number().int().min(1).max(10, "Item quantity must be between 1 and 10"),
   })).min(1, "Order must contain at least 1 item").max(20, "Order must contain no more than 20 items"),
+  couponCode: z.string().trim().min(1).max(24).optional(),
 });
 
 // Admin Analytics Overview
@@ -131,7 +134,25 @@ router.post("/", async (req, res, next) => {
 
     subtotal = Math.round(subtotal * 100) / 100;
     const shipping = subtotal >= 75 ? 0 : 8;
-    const total = Math.round((subtotal + shipping) * 100) / 100;
+
+    // Server-side coupon validation — client totals are never trusted
+    let discount = 0;
+    let couponCode = null;
+    if (body.couponCode) {
+      const { coupon, result } = await resolveCoupon(body.couponCode, subtotal, shipping);
+      const redeemResult = await Coupon.updateOne(
+        { _id: coupon._id, $or: [{ max_uses: 0 }, { $expr: { $lt: ["$used_count", "$max_uses"] } }] },
+        { $inc: { used_count: 1 } },
+        { session }
+      );
+      if (redeemResult.matchedCount === 0) {
+        throw conflict("This coupon has reached its usage limit.");
+      }
+      discount = result.discount;
+      couponCode = coupon.code;
+    }
+
+    const total = Math.max(0, Math.round((subtotal + shipping - discount) * 100) / 100);
 
     const newOrder = new Order({
       order_number: orderNumber,
@@ -145,6 +166,8 @@ router.post("/", async (req, res, next) => {
       items_json: JSON.stringify(lines),
       subtotal,
       shipping,
+      coupon_code: couponCode,
+      discount,
       total,
       payment_method: body.paymentMethod
     });
@@ -158,6 +181,9 @@ router.post("/", async (req, res, next) => {
         orderNumber: newOrder.order_number,
         status: newOrder.status,
         progress: newOrder.progress,
+        subtotal: newOrder.subtotal,
+        discount: newOrder.discount,
+        couponCode: newOrder.coupon_code,
         total: newOrder.total,
         createdAt: newOrder.created_at,
       },
@@ -214,6 +240,48 @@ router.get("/", authenticateAdmin, async (req, res, next) => {
   }
 });
 
+// Admin: Export orders as CSV
+router.get("/export", authenticateAdmin, async (_req, res, next) => {
+  try {
+    const rows = await Order.find().sort({ created_at: -1 }).lean();
+    const header = [
+      "order_number", "date", "customer_name", "customer_email", "customer_phone",
+      "shipping_address", "city", "state", "postal", "items", "subtotal",
+      "shipping", "coupon_code", "discount", "total", "payment_method",
+      "payment_status", "status",
+    ];
+    const escape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [
+      header.join(","),
+      ...rows.map((row) => [
+        row.order_number,
+        row.created_at?.toISOString?.() ?? "",
+        row.customer_name,
+        row.customer_email,
+        row.customer_phone,
+        row.shipping_address,
+        row.shipping_city,
+        row.shipping_state,
+        row.shipping_postal,
+        JSON.parse(row.items_json || "[]").map((line) => `${line.name} x${line.quantity} (${line.size}/${line.color})`).join("; "),
+        row.subtotal,
+        row.shipping,
+        row.coupon_code ?? "",
+        row.discount ?? 0,
+        row.total,
+        row.payment_method,
+        row.payment_status,
+        row.status,
+      ].map(escape).join(",")),
+    ].join("\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="nova-orders.csv"');
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Admin: Get single order
 router.get("/:id", authenticateAdmin, async (req, res, next) => {
   try {
@@ -258,9 +326,26 @@ router.patch("/:id/status", authenticateAdmin, async (req, res, next) => {
       return res.status(400).json({ message: "No valid fields to update" });
     }
 
+    const existing = await Order.findById(req.params.id).lean();
+    if (!existing) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // One-time review request when an order is first marked delivered
+    if (status === "delivered" && !existing.review_email_sent) {
+      updateData.review_email_sent = true;
+    }
+
     const updated = await Order.findByIdAndUpdate(req.params.id, updateData, { new: true }).lean();
     if (!updated) {
       return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (status === "delivered" && !existing.review_email_sent) {
+      const reviewOrder = { ...updated, items: JSON.parse(updated.items_json) };
+      import("../utils/email.js")
+        .then(({ sendReviewRequestEmail }) => sendReviewRequestEmail(reviewOrder))
+        .catch(console.error);
     }
 
     res.json({
