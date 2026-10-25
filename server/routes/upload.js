@@ -21,24 +21,29 @@ const storage = multer.diskStorage({
   },
 });
 
+const fileFilter = (req, file, cb) => {
+  const fileTypes = /jpeg|jpg|png|webp|gif/;
+  const extname = fileTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = fileTypes.test(file.mimetype);
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  }
+  cb(new Error("Images only! (jpeg, jpg, png, webp, gif)"));
+};
+
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
-  fileFilter: (req, file, cb) => {
-    const fileTypes = /jpeg|jpg|png|webp|gif/;
-    const extname = fileTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = fileTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error("Images only! (jpeg, jpg, png, webp, gif)"));
-    }
-  },
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter,
+});
+const uploadHomepageImage = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter,
 });
 
-// POST /api/upload
-router.post("/", authenticateAdmin, upload.single("image"), (req, res) => {
+function sendUploadedImage(req, res) {
   if (!req.file) {
     return res.status(400).json({ message: "No file uploaded" });
   }
@@ -50,6 +55,20 @@ router.post("/", authenticateAdmin, upload.single("image"), (req, res) => {
     message: "File uploaded successfully",
     url: fileUrl,
     filename: req.file.filename,
+  });
+}
+
+// Product media keeps its existing 5 MB limit.
+router.post("/", authenticateAdmin, upload.single("image"), sendUploadedImage);
+
+// Homepage editor images have a dedicated 5 MB limit.
+router.post("/homepage", authenticateAdmin, (req, res, next) => {
+  uploadHomepageImage.single("image")(req, res, (error) => {
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ message: "Homepage images must be 5 MB or smaller" });
+    }
+    if (error) return next(error);
+    return sendUploadedImage(req, res);
   });
 });
 

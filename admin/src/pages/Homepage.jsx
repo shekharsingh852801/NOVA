@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { adminApi } from '../services/adminApi.js';
+import { adminApi, resolveUploadedMediaUrl } from '../services/adminApi.js';
 
 const sectionNames = {
   hero: 'Hero banner',
@@ -59,12 +59,17 @@ function TextField({ label, value, onChange, multiline = false, type = 'text', p
 function ImageField({ label, value, onChange, onUpload, busy }) {
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const maxImageSize = 5 * 1024 * 1024;
 
   async function upload(event) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
     setError('');
+    if (file.size > maxImageSize) {
+      setError('Image must be 5 MB or smaller.');
+      return;
+    }
     setUploading(true);
     try {
       const url = await onUpload(file);
@@ -80,10 +85,18 @@ function ImageField({ label, value, onChange, onUpload, busy }) {
     <div className="homepage-image-field">
       <TextField label={label} value={value} onChange={onChange} placeholder="/uploads/image.webp or https://..." />
       <label className="homepage-upload-button">
-        {busy || uploading ? 'Uploading…' : 'Upload image'}
+        {busy || uploading ? 'Uploading…' : 'Upload image (max 5 MB)'}
         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={upload} disabled={busy || uploading} />
       </label>
-      {value && <img className="homepage-image-preview" src={value} alt="" />}
+      {value && (
+        <img
+          className="homepage-image-preview"
+          src={resolveUploadedMediaUrl(value)}
+          alt=""
+          onLoad={() => setError('')}
+          onError={() => setError('Image could not be displayed. Check that the image URL is reachable.')}
+        />
+      )}
       {error && <p className="homepage-error">{error}</p>}
     </div>
   );
@@ -468,7 +481,7 @@ export default function Homepage() {
   async function upload(file) {
     setUploadsInProgress((count) => count + 1);
     try {
-      const result = await adminApi.uploadMedia(file);
+      const result = await adminApi.uploadHomepageMedia(file);
       return result.url;
     } finally {
       setUploadsInProgress((count) => count - 1);

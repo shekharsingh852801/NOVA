@@ -52,7 +52,7 @@ export function createApp() {
   );
   app.use(express.json({
     limit: "10kb",
-    type: (req) => !req.path.startsWith("/api/homepage"),
+    type: (req) => !req.path.startsWith("/api/homepage") && !req.path.startsWith("/api/upload"),
   }));
   app.use("/api/homepage", express.json({ limit: "128kb" }));
 
@@ -88,7 +88,14 @@ export function createApp() {
   app.use("/api/homepage", homepageRoutes);
 
   // Serve static uploaded files
-  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+  app.use(
+    "/uploads",
+    (req, res, next) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      next();
+    },
+    express.static(path.join(process.cwd(), "uploads"))
+  );
   app.use(
     "/api/orders",
     rateLimit({
