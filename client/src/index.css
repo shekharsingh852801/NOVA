@@ -748,9 +748,7 @@ h1, h2, h3, p {
 .lookbook {
   background: var(--cream);
   color: var(--ink);
-  padding: 24px;
-  max-width: var(--container);
-  margin: 0 auto;
+  padding: 24px max(24px, calc((100vw - var(--container)) / 2 + 24px));
   display: grid;
   grid-template-columns: 180px 1fr;
   gap: 18px;
