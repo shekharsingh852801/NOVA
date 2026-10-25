@@ -8,6 +8,7 @@ const supportRequestSchema = new mongoose.Schema({
   message: { type: String },
   product_slug: { type: String },
   product_name: { type: String },
+  notified_at: { type: Date, default: null },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: false }
 });

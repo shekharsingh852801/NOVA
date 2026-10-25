@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { readStoredJson, writeStoredJson } from "../utils/storage.js";
+import { cartTotals, estimateShipping } from "../utils/coupons.js";
 
 const StoreContext = createContext(null);
 
 export function StoreProvider({ children }) {
   const [cart, setCart] = useState(() => readStoredJson("nova-cart", []));
+  const [coupon, setCoupon] = useState(() => readStoredJson("nova-coupon", null));
   const [wishlist, setWishlist] = useState(() => readStoredJson("nova-wishlist", []));
   const [recentlyViewed, setRecentlyViewed] = useState(() => readStoredJson("nova-recent", []));
   const [orders, setOrders] = useState(() => readStoredJson("nova-orders", []));
@@ -17,6 +19,7 @@ export function StoreProvider({ children }) {
   const [toast, setToast] = useState(null);
 
   useEffect(() => { writeStoredJson("nova-cart", cart); }, [cart]);
+  useEffect(() => { writeStoredJson("nova-coupon", coupon); }, [coupon]);
   useEffect(() => { writeStoredJson("nova-wishlist", wishlist); }, [wishlist]);
   useEffect(() => { writeStoredJson("nova-recent", recentlyViewed); }, [recentlyViewed]);
   useEffect(() => { writeStoredJson("nova-orders", orders); }, [orders]);
@@ -43,6 +46,25 @@ export function StoreProvider({ children }) {
     });
   }, []);
 
+  // Re-validate an applied coupon whenever the cart changes (min-order may break);
+  // silently drop it if it no longer applies.
+  useEffect(() => {
+    if (!coupon || !products.length) return;
+    const subtotal = cart.reduce((sum, item) => {
+      const product = products.find((p) => p.id === item.id);
+      return sum + (product ? product.price * item.quantity : 0);
+    }, 0);
+    if (!cart.length) {
+      setCoupon(null);
+      return;
+    }
+    import("../api/api.js").then(({ validateCoupon }) => {
+      validateCoupon(coupon.code, subtotal, cartTotals(subtotal, null).shipping)
+        .then((result) => setCoupon((current) => current && current.code === result.code ? result : current))
+        .catch(() => setCoupon(null));
+    }).catch(() => {});
+  }, [cart, products, coupon?.code]);
+
   const showToast = (message, type = "success") => {
     const id = Date.now();
     setToast({ id, message, type });
@@ -53,6 +75,7 @@ export function StoreProvider({ children }) {
 
   const addToCart = (product, size = product.sizes[0], quantity = 1, color = product.colors[0].name) => {
     showToast("Added to Bag", "success");
+    import("../utils/analytics.js").then(({ trackAddToCart }) => trackAddToCart(product, quantity)).catch(() => {});
     setCart((current) => {
       const found = current.find((item) => item.id === product.id && item.size === size && item.color === color);
       if (found) {
@@ -74,6 +97,17 @@ export function StoreProvider({ children }) {
 
   const replaceCart = (newCart) => setCart(newCart);
   const replaceOrders = (newOrders) => setOrders(newOrders);
+
+  const applyCoupon = async (code, subtotal) => {
+    const { validateCoupon } = await import("../api/api.js");
+    const result = await validateCoupon(code.trim(), subtotal, estimateShipping(subtotal));
+    setCoupon(result);
+    showToast(result.type === "free_shipping"
+      ? `Code ${result.code} applied — free shipping`
+      : `Code ${result.code} applied`, "success");
+    return result;
+  };
+  const clearCoupon = () => setCoupon(null);
 
   const toggleWishlist = (productId) => {
     setWishlist((current) => {
@@ -101,9 +135,10 @@ export function StoreProvider({ children }) {
   return (
     <StoreContext.Provider value={{
       cart, wishlist, recentlyViewed, orders, addresses, customerReviews, stockNotifications, contactRequests,
-      products, productsLoading, toast,
+      products, productsLoading, toast, coupon,
       cartCount, addToCart, updateQuantity, replaceCart, replaceOrders, toggleWishlist, recordView, saveOrder,
       addAddress, removeAddress, saveReview, saveStockNotification, saveContactRequest, showToast,
+      applyCoupon, clearCoupon,
     }}>
       {children}
     </StoreContext.Provider>

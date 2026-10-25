@@ -31,6 +31,11 @@ router.post("/subscribe", async (req, res, next) => {
     });
     await newSubscriber.save();
 
+    // Fire-and-forget welcome email
+    import("../utils/email.js")
+      .then(({ sendWelcomeEmail }) => sendWelcomeEmail(normalizedEmail))
+      .catch(console.error);
+
     res.status(201).json({
       message: "Subscribed! Watch your inbox for new drops.",
       subscriber: { email: newSubscriber.email, createdAt: newSubscriber.created_at },

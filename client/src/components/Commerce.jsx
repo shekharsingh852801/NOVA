@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../context/StoreContext.jsx";
 import { readStoredJson, writeStoredJson } from "../utils/storage.js";
 import { useDialogFocus } from "../utils/useDialogFocus.js";
+import useDocumentMeta from "../utils/useDocumentMeta.js";
+import { trackViewProduct, trackAddToCart } from "../utils/analytics.js";
 import { BackInStockForm, ProductReviewPanel } from "./CommerceExtras.jsx";
 import { isApiConfigured, trackOrder } from "../api/api.js";
 import { ArrowIcon, BagIcon, CloseIcon, HeartIcon, PlusIcon, StarIcon, BoxIcon, SearchIcon, PlayIcon } from "./Icons.jsx";
@@ -94,7 +96,7 @@ function ProductCard({ product, onQuickView, variant = "default" }) {
   };
 
   return (
-    <article className={`store-product-card ${variant === "home" ? "store-product-card--home" : ""}`}>
+    <article className={`store-product-card ${variant === "home" ? "store-product-card--home reveal-up" : ""}`}>
       <div className="store-product-card__media">
         <a href={`#/product/${product.slug}`} aria-label={`View ${product.name}`}>
           <img className="store-product-card__image" src={resizedImage(image, 720)} srcSet={`${resizedImage(image, 420)} 420w, ${resizedImage(image, 720)} 720w`} sizes={variant === "home" ? "(max-width: 680px) 50vw, 20vw" : "(max-width: 680px) 50vw, (max-width: 980px) 33vw, 25vw"} alt={product.name} loading="lazy" />
@@ -337,6 +339,23 @@ export function ShopPage({ category = "All", query = "", sortBy = "featured", ro
   );
 }
 
+const LETTER_SIZE_CHART = [
+  { size: "XS", chest: '34–36"', waist: '28–30"', length: '26"' },
+  { size: "S", chest: '36–38"', waist: '30–32"', length: '27"' },
+  { size: "M", chest: '38–40"', waist: '32–34"', length: '28"' },
+  { size: "L", chest: '40–42"', waist: '34–36"', length: '29"' },
+  { size: "XL", chest: '42–44"', waist: '36–38"', length: '30"' },
+  { size: "XXL", chest: '44–46"', waist: '38–40"', length: '31"' },
+];
+
+function defaultSizeChart(sizes) {
+  const numeric = (sizes || []).some((size) => /^\d{2}$/.test(size));
+  if (numeric) {
+    return (sizes || []).map((size) => ({ size, waist: `${Number(size) - 1}–${size}"`, length: `${Number(size) + 8}"` }));
+  }
+  return LETTER_SIZE_CHART.filter((row) => (sizes || []).includes(row.size));
+}
+
 export function ProductPage({ product, onQuickView, onFindSize, onBuyNow, onOpenCart, recommendedSize }) {
   const { wishlist, toggleWishlist, recentlyViewed, recordView, addToCart, products: storeProducts = [], productsLoading } = useStore();
   const preferredSize = readPreferredSize();
@@ -344,9 +363,39 @@ export function ProductPage({ product, onQuickView, onFindSize, onBuyNow, onOpen
   const [colorName, setColorName] = useState(product.colors[0].name);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
+  const [chartOpen, setChartOpen] = useState(false);
   const isWished = wishlist.includes(product.id);
+  const sizeChart = Array.isArray(product.sizeChart) && product.sizeChart.length ? product.sizeChart : defaultSizeChart(product.sizes);
   useEffect(() => recordView(product.id), [product.id]);
   useEffect(() => { if (recommendedSize && product.sizes.includes(recommendedSize)) setSize(recommendedSize); }, [product.id, product.sizes, recommendedSize]);
+
+  useEffect(() => { trackViewProduct(product); }, [product.id]);
+
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description,
+    image: product.images,
+    sku: product.slug,
+    brand: { "@type": "Brand", name: "NOVA" },
+    offers: {
+      "@type": "Offer",
+      price: product.price,
+      priceCurrency: "USD",
+      availability: product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    },
+  };
+  if (product.reviews > 0 && product.rating > 0) {
+    productJsonLd.aggregateRating = { "@type": "AggregateRating", ratingValue: product.rating, reviewCount: product.reviews };
+  }
+  useDocumentMeta({
+    title: `${product.name} — NOVA`,
+    description: `${product.description} ${product.fit ? `Fit: ${product.fit}.` : ""} Free shipping over $75.`.trim(),
+    image: product.images[0],
+    path: `/product/${product.slug}`,
+    jsonLd: productJsonLd,
+  });
   const addProduct = () => {
     addToCart(product, size, quantity, colorName);
     onOpenCart();
@@ -367,7 +416,20 @@ export function ProductPage({ product, onQuickView, onFindSize, onBuyNow, onOpen
           <div className="product-info__price-row"><p className="product-info__price">{money(product.price)} {product.compareAtPrice && <del>{money(product.compareAtPrice)}</del>}</p><a href="#reviews" className="product-rating"><span>{product.rating.toFixed(1)}</span><StarIcon /> <small>{product.reviews} reviews</small></a></div>
           <p className="product-info__description">{product.description}</p>
           <div className="product-choice"><div className="product-choice__heading"><span>Colour</span><span>{colorName}</span></div><div className="product-choice__colors">{product.colors.map((color) => <button className={colorName === color.name ? "is-selected" : ""} key={color.name} aria-label={color.name} aria-pressed={colorName === color.name} title={color.name} style={{ background: color.value }} onClick={() => setColorName(color.name)} />)}</div></div>
-          <div className="product-choice"><div className="product-choice__heading"><span>Size</span><button className="text-action" onClick={onFindSize}>Find my size</button></div><div className="size-options">{product.sizes.map((item) => <button className={size === item ? "is-selected" : ""} key={item} onClick={() => setSize(item)}>{item}</button>)}</div></div>
+          <div className="product-choice">
+            <div className="product-choice__heading"><span>Size</span><span className="product-choice__actions"><button className="text-action" onClick={() => setChartOpen((open) => !open)}>{chartOpen ? "Hide size chart" : "Size chart"}</button><button className="text-action" onClick={onFindSize}>Find my size</button></span></div>
+            <div className="size-options">{product.sizes.map((item) => <button className={size === item ? "is-selected" : ""} key={item} onClick={() => setSize(item)}>{item}</button>)}</div>
+            {product.fitNote && <p className="product-fit-note">{product.fitNote}</p>}
+            {chartOpen && (
+              <div className="size-chart" role="region" aria-label="Size chart">
+                <table>
+                  <thead><tr>{Object.keys(sizeChart[0] || { size: "" }).map((column) => <th key={column}>{column === "size" ? "Size" : column.charAt(0).toUpperCase() + column.slice(1)}</th>)}</tr></thead>
+                  <tbody>{sizeChart.map((row) => <tr key={row.size} className={row.size === size ? "is-selected" : ""}>{Object.keys(sizeChart[0]).map((column) => <td key={column}>{row[column]}</td>)}</tr>)}</tbody>}
+                </table>
+                <p className="size-chart__note">Measurements are in inches, taken flat. Between sizes? Size up for a relaxed fit.</p>
+              </div>
+            )}
+          </div>
           <div className="product-buy-row"><label className="quantity-control"><span className="sr-only">Quantity</span><button onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button onClick={() => setQuantity(Math.min(product.stock, quantity + 1))} aria-label="Increase quantity">+</button></label><button className="btn btn--dark product-buy-row__add" onClick={addProduct} disabled={!product.stock}><span>{product.stock ? "Add to bag" : "Out of stock"}</span><span>{money(product.price * quantity)}</span></button></div>
           {product.stock > 0 ? <button className="product-buy__now" onClick={() => { addToCart(product, size, quantity, colorName); onBuyNow(); }}>Buy now <ArrowIcon /></button> : <BackInStockForm product={product} />}
           <button className={`product-save ${isWished ? "is-active" : ""}`} onClick={() => toggleWishlist(product.id)}><HeartIcon /> {isWished ? "Saved to wishlist" : "Save to wishlist"}</button>
@@ -639,6 +701,11 @@ export function TrackingPage({ orders }) {
 }
 
 export function OrderSuccess({ order, onNavigate }) {
+  useEffect(() => {
+    if (order?.id) {
+      import("../utils/analytics.js").then(({ trackPurchase }) => trackPurchase(order)).catch(() => {});
+    }
+  }, [order?.id]);
   return <main className="commerce-page order-success"><p className="eyebrow eyebrow--dark">NOVA / THANK YOU</p><h1>Good things are on their way.</h1><p>{order?.source === "server" ? "Your order has been recorded. Payment remains pending until a provider is connected." : "Your demo order has been saved on this device."}</p>{order && <p className="order-success__number">Order {order.id} · {money(order.total)}</p>}<div><button className="btn btn--dark" onClick={() => onNavigate("tracking")}>Track your order <ArrowIcon /></button><button className="text-action" onClick={() => onNavigate("shop")}>Continue exploring</button></div></main>;
 }
 

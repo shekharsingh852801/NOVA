@@ -16,6 +16,8 @@ import customerRoutes from "./routes/customers.js";
 import uploadRoutes from "./routes/upload.js";
 import homepageRoutes from "./routes/homepage.js";
 import returnRoutes from "./routes/returns.js";
+import couponRoutes from "./routes/coupons.js";
+import settingRoutes from "./routes/settings.js";
 
 export function createApp() {
   const app = express();
@@ -86,6 +88,32 @@ export function createApp() {
   );
   app.use("/api/upload", uploadRoutes);
   app.use("/api/homepage", homepageRoutes);
+  app.use("/api/coupons", couponRoutes);
+  app.use("/api/settings", settingRoutes);
+
+  // Sitemap for crawlers — static routes plus every product page
+  app.get("/sitemap.xml", async (_req, res) => {
+    try {
+      const { Product } = await import("./models/Product.js");
+      const origin = process.env.SITE_URL || process.env.STORE_URL || `http://${_req.headers.host || "localhost:5001"}`;
+      const staticRoutes = ["", "#/shop", "#/collections", "#/journal", "#/about", "#/contact", "#/sale"];
+      const products = await Product.find().select("slug updated_at").lean();
+      const urls = [
+        ...staticRoutes.map((route) => ({ loc: `${origin}/${route}`, changefreq: "weekly" })),
+        ...products.map((product) => ({
+          loc: `${origin}/#/product/${product.slug}`,
+          lastmod: product.updated_at?.toISOString?.(),
+        })),
+      ];
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+        .map((url) => `<url><loc>${url.loc}</loc>${url.lastmod ? `<lastmod>${url.lastmod}</lastmod>` : ""}<changefreq>${url.changefreq || "daily"}</changefreq></url>`)
+        .join("\n")}\n</urlset>`;
+      res.setHeader("Content-Type", "application/xml");
+      res.send(xml);
+    } catch {
+      res.status(500).send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"/>");
+    }
+  });
 
   // Serve static uploaded files
   app.use(

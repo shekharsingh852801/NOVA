@@ -1,10 +1,22 @@
 import { Router } from "express";
 import { Product } from "../models/Product.js";
 import { Review } from "../models/Review.js";
+import { SupportRequest } from "../models/SupportRequest.js";
 import { authenticateAdmin } from "../middleware/auth.js";
 import { authenticateCustomer } from "../middleware/customerAuth.js";
 
 const router = Router();
+
+async function notifyBackInStock(product) {
+  const pending = await SupportRequest.find({ kind: "back-in-stock", product_slug: product.slug, notified_at: null });
+  if (!pending.length) return;
+  const { sendBackInStockEmail } = await import("../utils/email.js");
+  await Promise.allSettled(pending.map(async (request) => {
+    await sendBackInStockEmail(product, request.email);
+    request.notified_at = new Date();
+    await request.save();
+  }));
+}
 const COLOR_VALUES = {
   Ash: "#aaa9a4", Black: "#242321", Blue: "#82919a", Chalk: "#ebe8df", Charcoal: "#343431",
   Cloud: "#e5e0d5", Field: "#77745d", Ink: "#20201e", Moss: "#66705b", Natural: "#c9b99d",
@@ -37,6 +49,8 @@ export function serializeProduct(row) {
     material: row.material || "",
     fit: row.fit || "",
     care: row.care || "",
+    fitNote: row.fit_note || "",
+    sizeChart: parseJSON(row.size_chart_json, row.size_chart || []),
     rating: row.rating ?? 0,
     reviews: row.reviews ?? 0,
     stock: row.stock ?? 0,
@@ -80,6 +94,40 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server Error" });
+  }
+});
+
+// GET /api/products/export — admin CSV export (must precede /:id)
+router.get("/export", authenticateAdmin, async (_req, res) => {
+  try {
+    const rows = await Product.find().sort({ sort_order: 1, created_at: -1 }).lean();
+    const header = ["slug", "name", "category", "subcategory", "price", "compare_at_price", "stock", "sizes", "colors", "rating", "reviews", "tags", "fit_note", "created_at"];
+    const escape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [
+      header.join(","),
+      ...rows.map((row) => [
+        row.slug,
+        row.name,
+        row.category,
+        row.subcategory,
+        row.price,
+        row.compare_at_price ?? "",
+        row.stock,
+        row.sizes_json ?? "[]",
+        row.colors_json ?? "[]",
+        row.rating,
+        row.reviews,
+        row.tags_json ?? "[]",
+        row.fit_note ?? "",
+        row.created_at?.toISOString?.() ?? "",
+      ].map(escape).join(",")),
+    ].join("\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="nova-products.csv"');
+    res.send(csv);
+  } catch (error) {
+    console.error("Export products error:", error);
+    res.status(500).json({ message: "Failed to export products" });
   }
 });
 
@@ -169,6 +217,8 @@ router.post("/", authenticateAdmin, async (req, res) => {
       material: data.material || '',
       fit: data.fit || '',
       care: data.care || '',
+      fit_note: data.fitNote || '',
+      size_chart_json: JSON.stringify(data.sizeChart || []),
       rating: data.rating || 0,
       reviews: data.reviews || 0,
       stock: data.stock || 0,
@@ -215,6 +265,8 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
       material: data.material !== undefined ? data.material : existing.material,
       fit: data.fit !== undefined ? data.fit : existing.fit,
       care: data.care !== undefined ? data.care : existing.care,
+      fit_note: data.fitNote !== undefined ? data.fitNote : existing.fit_note,
+      size_chart_json: data.sizeChart !== undefined ? JSON.stringify(data.sizeChart) : existing.size_chart_json,
       rating: data.rating !== undefined ? data.rating : existing.rating,
       reviews: data.reviews !== undefined ? data.reviews : existing.reviews,
       stock: data.stock !== undefined ? data.stock : existing.stock,
@@ -229,6 +281,14 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
     };
 
     const updatedProduct = await Product.findOneAndUpdate({ slug }, updateData, { new: true });
+
+    // Restock: email pending back-in-stock requests (0 -> >0 transition)
+    const wasOutOfStock = existing.stock <= 0;
+    const isBackInStock = updatedProduct.stock > 0;
+    if (wasOutOfStock && isBackInStock) {
+      notifyBackInStock(updatedProduct).catch(console.error);
+    }
+
     res.json(serializeProduct(updatedProduct));
   } catch (error) {
     console.error("Update product error:", error);

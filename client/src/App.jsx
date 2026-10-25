@@ -33,6 +33,7 @@ import {
   CartPage,
   CollectionDetail,
   CollectionsPage,
+  EditorialPage,
   JournalPage,
   OrderSuccess,
   PolicyPage,
@@ -47,6 +48,9 @@ import {
   collections,
 } from "./components/Commerce.jsx";
 import AboutPage from "./components/AboutPage.jsx";
+import WhatsAppFloat from "./components/WhatsAppFloat.jsx";
+import useDocumentMeta from "./utils/useDocumentMeta.js";
+import { initAnalytics } from "./utils/analytics.js";
 
 function currentRoute() {
   return window.location.hash.startsWith("#/") ? window.location.hash.slice(2) : "";
@@ -61,7 +65,7 @@ function Storefront() {
       return null;
     }
   });
-  
+
   const handleLogout = () => {
     localStorage.removeItem("nova_customer_token");
     localStorage.removeItem("nova_customer");
@@ -73,6 +77,26 @@ function Storefront() {
   const [route, setRoute] = useState(currentRoute);
   const [showPagePreloader] = useState(() => currentRoute() === "");
   const routeRef = useRef(route);
+
+  const pathname = route.split("?")[0];
+
+  useEffect(() => { initAnalytics(); }, []);
+
+  const metaByRoute = {
+    "": { title: "NOVA — Modern Fits for a Better Tomorrow", description: "Considered streetwear made from sustainable fabrics. Free shipping over $75, easy 30-day returns." },
+    shop: { title: "Shop All — NOVA", description: "Browse every NOVA piece — tops, bottoms, outerwear and accessories." },
+    sale: { title: "Sale — NOVA", description: "Seasonal markdowns on NOVA essentials. Limited sizes." },
+    collections: { title: "Collections — NOVA", description: "Explore NOVA collections and curated edits." },
+    journal: { title: "Journal — NOVA", description: "Style notes, fabric stories and behind-the-scenes from the NOVA studio." },
+    about: { title: "Our Story — NOVA", description: "NOVA is more than clothing — real stories, sustainable materials, a better future." },
+    contact: { title: "Contact — NOVA", description: "Questions about an order, sizing or returns? Talk to the NOVA team." },
+    wishlist: { title: "Wishlist — NOVA", description: "Pieces you've saved for later." },
+    cart: { title: "Your Bag — NOVA", description: "Review your bag and check out." },
+    checkout: { title: "Checkout — NOVA", description: "Secure checkout with NOVA." },
+    auth: { title: "Sign in — NOVA", description: "Sign in or create your NOVA account." },
+  };
+  const routeMeta = metaByRoute[pathname] || { title: "NOVA — Modern Fits for a Better Tomorrow", description: "Considered streetwear made from sustainable fabrics." };
+  useDocumentMeta({ ...routeMeta, path: pathname === "" ? "/" : `/${pathname}` });
   const routeScrollPositions = useRef(new Map());
   const [cartOpen, setCartOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -217,7 +241,7 @@ function Storefront() {
     setFilmOpen(false);
   };
 
-  const [pathname, queryString = ""] = route.split("?");
+  const [, queryString = ""] = route.split("?");
   const params = new URLSearchParams(queryString);
   const category = params.get("category") || (pathname === "sale" ? "Sale" : "All");
   const query = params.get("q") || "";
@@ -279,6 +303,7 @@ function Storefront() {
   }, [pathname, queryString]);
 
   useEffect(() => {
+    const pendingSelector = ".reveal-up:not(.is-revealed), .reveal-mask:not(.is-revealed), .reveal-clip:not(.is-revealed)";
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -286,10 +311,42 @@ function Storefront() {
         }
       });
     }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
-    
-    document.querySelectorAll(".reveal-up").forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [pathname, homepageContent]);
+
+    document.querySelectorAll(pendingSelector).forEach((el) => observer.observe(el));
+
+    // Fallback for embedded webviews where IntersectionObserver never fires:
+    // sweep with getBoundingClientRect on scroll/resize/interval instead.
+    let raf = 0;
+    const sweep = () => {
+      raf = 0;
+      document.querySelectorAll(pendingSelector).forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight - 40 && rect.bottom > 40) {
+          el.classList.add("is-revealed");
+          observer.unobserve(el);
+        }
+      });
+    };
+    const requestSweep = () => {
+      if (!raf) raf = window.requestAnimationFrame(sweep);
+    };
+    window.addEventListener("scroll", requestSweep, { passive: true });
+    window.addEventListener("resize", requestSweep);
+    const sweepTimer = window.setTimeout(sweep, 600);
+    const sweepInterval = window.setInterval(() => {
+      sweep();
+      if (!document.querySelector(pendingSelector)) window.clearInterval(sweepInterval);
+    }, 900);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", requestSweep);
+      window.removeEventListener("resize", requestSweep);
+      window.clearTimeout(sweepTimer);
+      window.clearInterval(sweepInterval);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, [pathname, homepageContent, productsLoading, products]);
 
   const openQuickView = (item) => {
     if (item?.look) {
@@ -304,18 +361,19 @@ function Storefront() {
     setSizeOpen(true);
   };
 
-  const placeOrder = async ({ form, lines, subtotal, shipping }) => {
+  const placeOrder = async ({ form, lines, subtotal, shipping, discount, couponCode }) => {
     const orderRequest = isApiConfigured() ? await createOrder({
       customer: { name: form.name, email: form.email, phone: form.phone },
       shippingAddress: { address: form.address, city: form.city, state: form.state, postal: form.postal },
       paymentMethod: form.payment === "Cash on delivery" ? "cash_on_delivery" : "pay_on_delivery",
       items: lines.map((line) => ({ slug: line.product.slug, size: line.size, color: line.color, quantity: line.quantity })),
+      couponCode: couponCode || undefined,
     }) : null;
     const order = {
       id: orderRequest?.order.orderNumber || `NV-${Date.now().toString().slice(-7)}`,
       email: form.email,
       name: form.name,
-      total: orderRequest?.order.total ?? subtotal + shipping,
+      total: orderRequest?.order.total ?? Math.max(0, subtotal + shipping - (discount || 0)),
       lines,
       status: orderRequest?.order.status || "Confirmed",
       progress: orderRequest?.order.progress || 2,
@@ -473,6 +531,7 @@ function Storefront() {
       />
       <ShopTheLook open={lookOpen} onClose={() => setLookOpen(false)} onOpenCart={() => setCartOpen(true)} />
       <FilmModal open={filmOpen} onClose={() => setFilmOpen(false)} />
+      <WhatsAppFloat />
       <GlobalToast toast={toast} />
     </>
   );

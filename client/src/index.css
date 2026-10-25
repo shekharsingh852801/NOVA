@@ -3680,3 +3680,451 @@ body.shop-filter-open { overflow: hidden; }
   color: var(--white);
   text-align: center;
 }
+
+/* =========================================================
+   NOVA — Editorial Motion Layer (homepage)
+   ========================================================= */
+
+/* Announcement bar — crossfade/slide on rotate */
+.announcement-bar__text {
+  animation: announcement-in 0.38s var(--ease) both;
+}
+@keyframes announcement-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hero — parallax media wrapper (taller than hero so the
+   downward drift never exposes a gap) */
+.hero__media {
+  position: absolute;
+  inset: -6% 0;
+  will-change: transform;
+}
+.hero__scrim,
+.hero__content,
+.hero__scroll {
+  z-index: 1;
+}
+
+/* Hero — line-mask heading reveal */
+.hero__heading.reveal-mask {
+  opacity: 1;
+  transform: none;
+}
+.hero__line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
+}
+.hero__line-inner {
+  display: block;
+  transform: translateY(115%);
+  transition: transform 0.9s var(--ease);
+  transition-delay: 0.65s;
+}
+.hero__heading.is-revealed .hero__line-inner {
+  transform: translateY(0);
+}
+.hero__line:nth-child(2) .hero__line-inner { transition-delay: 0.77s; }
+.hero__line:nth-child(3) .hero__line-inner { transition-delay: 0.89s; }
+
+/* Hero — animated scroll indicator */
+.hero__scroll-line {
+  position: relative;
+  overflow: hidden;
+}
+.hero__scroll-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.75);
+  animation: scroll-pulse 2.2s var(--ease) infinite;
+}
+@keyframes scroll-pulse {
+  0% { transform: scaleY(0); transform-origin: top; }
+  45% { transform: scaleY(1); transform-origin: top; }
+  55% { transform: scaleY(1); transform-origin: bottom; }
+  100% { transform: scaleY(0); transform-origin: bottom; }
+}
+
+/* Marquee strip under the feature bar */
+.marquee {
+  overflow: hidden;
+  border-bottom: 1px solid var(--line-on-dark);
+  padding: 12px 0;
+}
+.marquee__track {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 30s linear infinite;
+}
+.marquee__track span {
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(247, 246, 242, 0.85);
+}
+.marquee:hover .marquee__track {
+  animation-play-state: paused;
+}
+@keyframes marquee-scroll {
+  to { transform: translateX(-50%); }
+}
+
+/* Staggered card entrances */
+.product-grid--home > .reveal-up:nth-child(1) { transition-delay: 0.05s; }
+.product-grid--home > .reveal-up:nth-child(2) { transition-delay: 0.1s; }
+.product-grid--home > .reveal-up:nth-child(3) { transition-delay: 0.15s; }
+.product-grid--home > .reveal-up:nth-child(4) { transition-delay: 0.2s; }
+.product-grid--home > .reveal-up:nth-child(5) { transition-delay: 0.25s; }
+
+.category-grid > .reveal-up:nth-child(1) { transition-delay: 0.05s; }
+.category-grid > .reveal-up:nth-child(2) { transition-delay: 0.13s; }
+.category-grid > .reveal-up:nth-child(3) { transition-delay: 0.21s; }
+.category-grid > .reveal-up:nth-child(4) { transition-delay: 0.29s; }
+
+.lookbook__strip > .reveal-up:nth-child(1) { transition-delay: 0.05s; }
+.lookbook__strip > .reveal-up:nth-child(2) { transition-delay: 0.12s; }
+.lookbook__strip > .reveal-up:nth-child(3) { transition-delay: 0.19s; }
+.lookbook__strip > .reveal-up:nth-child(4) { transition-delay: 0.26s; }
+.lookbook__strip > .reveal-up:nth-child(5) { transition-delay: 0.33s; }
+.lookbook__strip > img.is-revealed {
+  transition: transform 0.4s var(--ease);
+}
+.lookbook__strip > img.is-revealed:hover {
+  transform: translateY(-6px) scale(1.04);
+}
+
+/* Category card — hover polish */
+.category-card .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: transform 0.3s var(--ease);
+}
+.category-card:hover .text-link {
+  transform: translateX(4px);
+}
+.category-card:hover .category-card__scrim {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 30%, rgba(0, 0, 0, 0.82) 100%);
+}
+.category-card__scrim {
+  transition: background 0.4s var(--ease);
+}
+
+/* Brand story — clip-path image reveal */
+.reveal-clip {
+  clip-path: inset(100% 0 0 0);
+  transition: clip-path 1s var(--ease);
+}
+.reveal-clip.is-revealed {
+  clip-path: inset(0 0 0 0);
+}
+.brand-story__media img {
+  transform: scale(1.1);
+  transition: transform 1.2s var(--ease);
+}
+.brand-story__media.is-revealed img {
+  transform: scale(1);
+}
+
+/* Testimonial cards — hover lift */
+.testimonial-card {
+  transition: transform 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+.testimonial-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(247, 246, 242, 0.32);
+}
+
+/* Reduced motion — stop infinite loops, show everything */
+@media (prefers-reduced-motion: reduce) {
+  .marquee__track,
+  .hero__scroll-line::after,
+  .announcement-bar__text {
+    animation: none;
+  }
+  .hero__line-inner {
+    transform: none;
+    transition: none;
+  }
+  .reveal-clip {
+    clip-path: none;
+    transition: none;
+  }
+}
+
+/* Lookbook strip — reveal transition must win over base img rule */
+.lookbook__strip img.reveal-up {
+  transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+}
+
+/* =========================================================
+   NOVA — Motion Layer 2 (split headings, footer, magnetic, velocity marquee)
+   ========================================================= */
+
+/* SplitHeading — word-level mask reveal */
+.split-heading__word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+.split-heading__word-inner {
+  display: inline-block;
+  transform: translateY(115%);
+  transition: transform 0.7s var(--ease);
+  transition-delay: calc(var(--word-base, 0ms) + var(--word-i, 0) * 55ms);
+  will-change: transform;
+}
+.split-heading.is-revealed .split-heading__word-inner {
+  transform: translateY(0);
+}
+
+/* Footer — wordmark mask reveal + column stagger */
+.footer__logo {
+  overflow: hidden;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.02em;
+}
+.footer__logo-inner {
+  display: block;
+  transform: translateY(108%);
+  transition: transform 0.9s var(--ease);
+}
+.footer__logo.reveal-mask.is-revealed .footer__logo-inner {
+  transform: translateY(0);
+}
+.footer__top > .reveal-up:nth-child(1) { transition-delay: 0.08s; }
+.footer__top > .reveal-up:nth-child(2) { transition-delay: 0.18s; }
+.footer__top > .reveal-up:nth-child(3) { transition-delay: 0.28s; }
+.footer__top > .reveal-up:nth-child(4) { transition-delay: 0.38s; }
+.footer__top > .reveal-up:nth-child(5) { transition-delay: 0.48s; }
+
+/* Magnetic CTAs — smooth follow and release */
+.btn--magnetic {
+  transition: transform 0.25s ease-out, background-color 0.25s ease-out, color 0.25s ease-out, border-color 0.25s ease-out;
+  will-change: transform;
+}
+
+/* Marquee — JS velocity mode takes over from the CSS loop */
+.marquee.is-js .marquee__track {
+  animation: none;
+}
+
+/* Sustainability — clip the parallaxing background */
+.sustainability {
+  overflow: hidden;
+}
+
+/* Category cards — cursor-follow image parallax via CSS vars */
+.category-card img {
+  transform: translate(var(--px, 0px), var(--py, 0px)) scale(var(--card-zoom, 1));
+}
+.category-card:hover img {
+  --card-zoom: 1.05;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-heading__word-inner {
+    transform: none;
+    transition: none;
+  }
+  .footer__logo-inner {
+    transform: none;
+    transition: none;
+  }
+  .category-card img {
+    transform: none;
+  }
+}
+
+/* Category cards — var-based transform must win over the base hover rule */
+.category-card img {
+  transition: transform 0.3s var(--ease);
+}
+.category-card:hover img {
+  transform: translate(var(--px, 0px), var(--py, 0px)) scale(var(--card-zoom, 1.05));
+}
+
+/* =========================================================
+   NOVA — Commerce extras (coupons, size chart, WhatsApp)
+   ========================================================= */
+
+.coupon-box {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.coupon-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line-on-light);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.coupon-box .btn {
+  padding: 9px 14px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.coupon-box--applied {
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border: 1px dashed var(--olive);
+  border-radius: var(--radius-sm);
+  background: rgba(92, 102, 80, 0.08);
+}
+.coupon-box__label {
+  font-size: 11px;
+  color: var(--ink);
+}
+.checkout-summary__discount span {
+  color: var(--olive);
+  font-weight: 600;
+}
+
+/* PDP — size chart & fit note */
+.product-choice__actions {
+  display: inline-flex;
+  gap: 14px;
+}
+.product-fit-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted-on-light);
+}
+.size-chart {
+  margin-top: 10px;
+  border: 1px solid var(--line-on-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.size-chart table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.size-chart th,
+.size-chart td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-on-light);
+}
+.size-chart th {
+  background: rgba(22, 22, 15, 0.04);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.size-chart tr:last-child td {
+  border-bottom: none;
+}
+.size-chart tr.is-selected td {
+  background: rgba(92, 102, 80, 0.1);
+  font-weight: 600;
+}
+.size-chart__note {
+  padding: 8px 10px;
+  margin: 0;
+  font-size: 10px;
+  color: var(--muted-on-light);
+  background: rgba(22, 22, 15, 0.03);
+}
+
+/* WhatsApp float */
+.whatsapp-float {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: 999px;
+  background: #25d366;
+  color: #0b2e13;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+.whatsapp-float:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+}
+
+/* =========================================================
+   NOVA — Admin extras (login, coupons form, row actions)
+   ========================================================= */
+
+.admin-login {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: 24px;
+}
+.admin-login__card {
+  width: min(400px, 100%);
+  padding: 28px;
+  border: 1px solid var(--line-on-dark);
+  border-radius: var(--radius-md);
+  background: var(--black-card);
+  display: grid;
+  gap: 14px;
+}
+.admin-login__card h1 {
+  margin: 0;
+  font-size: 20px;
+}
+.admin-login__hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-on-dark);
+}
+.admin-login__card label {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+}
+.admin-login__card input {
+  padding: 10px 12px;
+  border: 1px solid var(--line-on-dark);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--white);
+  font-family: var(--font-body);
+}
+
+.admin-form-grid__wide {
+  grid-column: 1 / -1;
+}
+.admin-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.admin-table__sub {
+  display: block;
+  color: var(--muted-on-dark);
+  font-size: 10px;
+  margin-top: 2px;
+}
+.admin-empty-note {
+  font-size: 11px;
+  color: var(--muted-on-dark);
+  margin: 8px 0;
+}

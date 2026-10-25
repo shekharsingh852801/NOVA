@@ -21,7 +21,6 @@ import {
   adminOrderStatus,
   adminProducts,
   adminCustomers,
-  adminDiscounts,
   adminNotifications,
   adminSalesSeries,
   categoryPerformance,
@@ -30,6 +29,16 @@ import {
   recentOrders,
   topProducts,
 } from "../services/adminData.js";
+import {
+  adminLogin,
+  createAdminCoupon,
+  deleteAdminCoupon,
+  fetchAdminCoupons,
+  fetchAdminCsv,
+  fetchPublicSettings,
+  saveAdminSettings,
+  updateAdminCoupon,
+} from "../api/api.js";
 
 const adminTitleMap = {
   dashboard: "Dashboard",
@@ -346,7 +355,13 @@ function DashboardView({ onAction }) {
   );
 }
 
-function OrdersView({ onAction }) {
+function OrdersView({ onAction, token }) {
+  const exportCsv = () => {
+    if (!token) { onAction("Log in to export"); return; }
+    fetchAdminCsv("/orders/export", token, "nova-orders.csv")
+      .then(() => onAction("Orders CSV downloaded"))
+      .catch((err) => onAction(err.message || "Export failed"));
+  };
   return (
     <div className="admin-page__content-card">
       <div className="admin-page__header">
@@ -354,7 +369,7 @@ function OrdersView({ onAction }) {
           <p className="eyebrow eyebrow--light">Commerce</p>
           <h1>Orders</h1>
         </div>
-        <button type="button" className="btn btn--light" onClick={() => onAction("Exported orders")}>Export CSV</button>
+        <button type="button" className="btn btn--light" onClick={exportCsv}>Export CSV</button>
       </div>
       <div className="admin-table-wrapper">
         <table className="admin-table">
@@ -386,7 +401,13 @@ function OrdersView({ onAction }) {
   );
 }
 
-function ProductsView({ onAction }) {
+function ProductsView({ onAction, token }) {
+  const exportCsv = () => {
+    if (!token) { onAction("Log in to export"); return; }
+    fetchAdminCsv("/products/export", token, "nova-products.csv")
+      .then(() => onAction("Products CSV downloaded"))
+      .catch((err) => onAction(err.message || "Export failed"));
+  };
   return (
     <div className="admin-page__content-card">
       <div className="admin-page__header">
@@ -394,7 +415,10 @@ function ProductsView({ onAction }) {
           <p className="eyebrow eyebrow--light">Catalog</p>
           <h1>Products</h1>
         </div>
-        <button type="button" className="btn btn--light" onClick={() => onAction("Created product draft")}>Add product</button>
+        <div className="admin-row-actions">
+          <button type="button" className="btn btn--light" onClick={() => onAction("Created product draft")}>Add product</button>
+          <button type="button" className="text-action" onClick={exportCsv}>Export CSV</button>
+        </div>
       </div>
       <div className="admin-table-wrapper">
         <table className="admin-table">
@@ -497,7 +521,68 @@ function CustomersView() {
   );
 }
 
-function DiscountsView() {
+function DiscountsView({ token, onAction }) {
+  const [coupons, setCoupons] = useState(null);
+  const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ code: "", type: "percent", value: 15, min_order: 0, max_uses: 0, description: "" });
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    fetchAdminCoupons(token)
+      .then((data) => { setCoupons(data); setError(""); })
+      .catch((err) => setError(err.message || "Could not load coupons"));
+  };
+  useEffect(() => { if (token) load(); }, [token]);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await createAdminCoupon(token, {
+        code: form.code.trim().toUpperCase(),
+        type: form.type,
+        value: Number(form.value) || 0,
+        min_order: Number(form.min_order) || 0,
+        max_uses: Number(form.max_uses) || 0,
+        description: form.description.trim(),
+      });
+      onAction(`Coupon ${form.code.toUpperCase()} created`);
+      setShowForm(false);
+      setForm({ code: "", type: "percent", value: 15, min_order: 0, max_uses: 0, description: "" });
+      load();
+    } catch (err) {
+      onAction(err.message || "Could not create coupon");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleActive = async (coupon) => {
+    try {
+      await updateAdminCoupon(token, coupon._id, { is_active: !coupon.is_active });
+      load();
+    } catch (err) {
+      onAction(err.message || "Could not update coupon");
+    }
+  };
+
+  const remove = async (coupon) => {
+    try {
+      await deleteAdminCoupon(token, coupon._id);
+      onAction(`Coupon ${coupon.code} deleted`);
+      load();
+    } catch (err) {
+      onAction(err.message || "Could not delete coupon");
+    }
+  };
+
+  const formatValue = (coupon) => {
+    if (coupon.type === "percent") return `${coupon.value}% off`;
+    if (coupon.type === "fixed") return `$${coupon.value} off`;
+    return "Free shipping";
+  };
+
   return (
     <div className="admin-page__content-card">
       <div className="admin-page__header">
@@ -505,31 +590,56 @@ function DiscountsView() {
           <p className="eyebrow eyebrow--light">Commerce</p>
           <h1>Discounts</h1>
         </div>
-        <button type="button" className="btn btn--light">Create discount</button>
+        <button type="button" className="btn btn--light" onClick={() => setShowForm((open) => !open)}>{showForm ? "Close form" : "Create discount"}</button>
       </div>
+
+      {showForm && (
+        <form className="admin-form-grid" onSubmit={submit}>
+          <label><span>Code</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="WELCOME15" required minLength={2} maxLength={24} /></label>
+          <label><span>Type</span><select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="percent">Percentage off</option><option value="fixed">Fixed amount off</option><option value="free_shipping">Free shipping</option></select></label>
+          <label><span>Value {form.type === "percent" ? "(%)" : form.type === "fixed" ? "($)" : "(unused)"}</span><input type="number" min="0" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} disabled={form.type === "free_shipping"} /></label>
+          <label><span>Minimum order ($)</span><input type="number" min="0" value={form.min_order} onChange={(e) => setForm({ ...form, min_order: e.target.value })} /></label>
+          <label><span>Max uses (0 = unlimited)</span><input type="number" min="0" value={form.max_uses} onChange={(e) => setForm({ ...form, max_uses: e.target.value })} /></label>
+          <label className="admin-form-grid__wide"><span>Description</span><input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="15% off your first order" maxLength={160} /></label>
+          <div className="admin-form-grid__wide"><button type="submit" className="btn btn--light" disabled={busy}>{busy ? "Creating…" : "Create coupon"}</button></div>
+        </form>
+      )}
+
+      {error && <p className="form-error" role="alert">{error}</p>}
       <div className="admin-table-wrapper">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Type</th>
-              <th>Value</th>
-              <th>Dates</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {adminDiscounts.map((discount) => (
-              <tr key={discount.code}>
-                <td>{discount.code}</td>
-                <td>{discount.type}</td>
-                <td>{discount.value}</td>
-                <td>{discount.start} — {discount.end}</td>
-                <td><span className={`status-pill status-pill--${statusTone[discount.status]}`}>{discount.status}</span></td>
+        {coupons === null && !error ? <p className="admin-empty-note">Loading coupons…</p> : coupons && coupons.length === 0 ? (
+          <p className="admin-empty-note">No coupons yet — create the first one. Try WELCOME15 for the announcement bar.</p>
+        ) : coupons && (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Discount</th>
+                <th>Min order</th>
+                <th>Usage</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {coupons.map((coupon) => (
+                <tr key={coupon._id}>
+                  <td><strong>{coupon.code}</strong>{coupon.description ? <small className="admin-table__sub">{coupon.description}</small> : null}</td>
+                  <td>{formatValue(coupon)}</td>
+                  <td>{coupon.min_order ? `$${coupon.min_order}` : "—"}</td>
+                  <td>{coupon.max_uses ? `${coupon.used_count} / ${coupon.max_uses}` : `${coupon.used_count} / ∞`}</td>
+                  <td><span className={`status-pill status-pill--${coupon.is_active ? "success" : "neutral"}`}>{coupon.is_active ? "Active" : "Paused"}</span></td>
+                  <td>
+                    <div className="admin-row-actions">
+                      <button type="button" className="text-action" onClick={() => toggleActive(coupon)}>{coupon.is_active ? "Pause" : "Activate"}</button>
+                      <button type="button" className="text-action" onClick={() => remove(coupon)}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -589,7 +699,37 @@ function AnalyticsView() {
   );
 }
 
-function SettingsView() {
+function SettingsView({ token, onAction }) {
+  const [settings, setSettings] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchPublicSettings()
+      .then(setSettings)
+      .catch((err) => setError(err.message || "Could not load settings"));
+  }, []);
+
+  const update = (key) => (event) => setSettings({ ...settings, [key]: event.target.value });
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const saved = await saveAdminSettings(token, {
+        ga4_id: (settings.ga4_id || "").trim(),
+        meta_pixel_id: (settings.meta_pixel_id || "").trim(),
+        whatsapp_number: (settings.whatsapp_number || "").trim(),
+        site_url: (settings.site_url || "").trim(),
+      });
+      setSettings(saved);
+      onAction("Settings saved");
+    } catch (err) {
+      onAction(err.message || "Could not save settings");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="admin-page__content-card">
       <div className="admin-page__header">
@@ -597,26 +737,30 @@ function SettingsView() {
           <p className="eyebrow eyebrow--light">Settings</p>
           <h1>Store settings</h1>
         </div>
-        <button type="button" className="btn btn--light">Save changes</button>
+        <button type="button" className="btn btn--light" onClick={save} disabled={busy || !settings}>{busy ? "Saving…" : "Save changes"}</button>
       </div>
-      <div className="admin-form-grid">
-        <label>
-          <span>Store name</span>
-          <input defaultValue="NOVA" />
-        </label>
-        <label>
-          <span>Currency</span>
-          <input defaultValue="INR (₹)" />
-        </label>
-        <label>
-          <span>Contact email</span>
-          <input defaultValue="care@nova.store" />
-        </label>
-        <label>
-          <span>Tax rate</span>
-          <input defaultValue="18%" />
-        </label>
-      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {settings && (
+        <div className="admin-form-grid">
+          <label>
+            <span>GA4 Measurement ID</span>
+            <input value={settings.ga4_id || ""} onChange={update("ga4_id")} placeholder="G-XXXXXXXXXX" />
+          </label>
+          <label>
+            <span>Meta Pixel ID</span>
+            <input value={settings.meta_pixel_id || ""} onChange={update("meta_pixel_id")} placeholder="1234567890" />
+          </label>
+          <label>
+            <span>WhatsApp number (with country code)</span>
+            <input value={settings.whatsapp_number || ""} onChange={update("whatsapp_number")} placeholder="+91 98XXXXXXXX" />
+          </label>
+          <label>
+            <span>Canonical site URL (emails &amp; sitemap)</span>
+            <input value={settings.site_url || ""} onChange={update("site_url")} placeholder="https://nova.shop" />
+          </label>
+          <p className="admin-form-grid__wide admin-empty-note">Analytics scripts and the WhatsApp chat button load on the storefront only after these IDs are set. Leave blank to disable.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -645,20 +789,20 @@ function NotificationsView() {
   );
 }
 
-function renderPage(page, onAction) {
+function renderPage(page, onAction, token) {
   switch (page) {
     case "dashboard":
       return <DashboardView onAction={onAction} />;
     case "orders":
-      return <OrdersView onAction={onAction} />;
+      return <OrdersView onAction={onAction} token={token} />;
     case "products":
-      return <ProductsView onAction={onAction} />;
+      return <ProductsView onAction={onAction} token={token} />;
     case "inventory":
       return <InventoryView />;
     case "customers":
       return <CustomersView />;
     case "discounts":
-      return <DiscountsView />;
+      return <DiscountsView onAction={onAction} token={token} />;
     case "categories":
       return <GenericListPage title="Categories" description="Manage category hierarchy and visibility." items={[{ title: 'Men', meta: '12 products' }, { title: 'Women', meta: '22 products' }, { title: 'Accessories', meta: '8 products' }]} />;
     case "collections":
@@ -682,7 +826,7 @@ function renderPage(page, onAction) {
     case "payments":
       return <GenericListPage title="Payments" description="Monitor payment methods, statuses, and transaction IDs." items={[{ title: 'Razorpay', meta: 'Live' }, { title: 'COD', meta: 'Enabled' }]} />;
     case "settings":
-      return <SettingsView />;
+      return <SettingsView onAction={onAction} token={token} />;
     case "admin":
       return <GenericListPage title="Admin & Permissions" description="Manage roles, access levels, and admin approval flows." items={[{ title: 'SUPER_ADMIN', meta: 'Full access' }, { title: 'CONTENT_MANAGER', meta: 'Content only' }]} />;
     case "notifications":
@@ -694,11 +838,68 @@ function renderPage(page, onAction) {
   }
 }
 
+function AdminLogin({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const data = await adminLogin(email.trim(), password);
+      localStorage.setItem("nova_admin_token", data.token);
+      localStorage.setItem("nova_admin_user", JSON.stringify(data.user || {}));
+      onLogin(data.token, data.user);
+    } catch (err) {
+      setError(err.message || "Login failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <main className="admin-login">
+      <form className="admin-login__card" onSubmit={submit}>
+        <p className="eyebrow eyebrow--light">NOVA / ADMIN</p>
+        <h1>Sign in to manage the store</h1>
+        <p className="admin-login__hint">Coupons, settings and CSV exports need an admin account. Other pages stay viewable.</p>
+        <label>
+          <span>Email</span>
+          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
+        </label>
+        <label>
+          <span>Password</span>
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
+        </label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button type="submit" className="btn btn--light" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+      </form>
+    </main>
+  );
+}
+
 export default function AdminApp({ route = "admin", onNavigate }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem("nova_admin_token") || "");
+  const [adminUser, setAdminUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("nova_admin_user") || "null"); } catch { return null; }
+  });
+  const [loginOpen, setLoginOpen] = useState(false);
+
+  const logout = () => {
+    localStorage.removeItem("nova_admin_token");
+    localStorage.removeItem("nova_admin_user");
+    setAdminToken("");
+    setAdminUser(null);
+    setLoginOpen(false);
+    setToast("Logged out");
+  };
 
   const page = useMemo(() => {
     const cleanRoute = route.replace(/^admin\/?/, "") || "dashboard";
@@ -800,18 +1001,26 @@ export default function AdminApp({ route = "admin", onNavigate }) {
               <span className="admin-indicator">4</span>
             </button>
             <div className="admin-user-pill">
-              <div className="admin-user-pill__avatar">AD</div>
+              <div className="admin-user-pill__avatar">{(adminUser?.name || "AD").slice(0, 2).toUpperCase()}</div>
               <div className="admin-user-pill__meta">
-                <strong>Admin</strong>
-                <span>Super Admin</span>
+                <strong>{adminUser?.name || "Admin"}</strong>
+                <span>{adminUser?.role || "Not signed in"}</span>
               </div>
+              {adminToken
+                ? <button type="button" className="text-action" onClick={logout}>Log out</button>
+                : <button type="button" className="text-action" onClick={() => setLoginOpen(true)}>Sign in</button>}
             </div>
           </div>
         </header>
 
         <div className="admin-main__content">
           {toast && <div className="admin-toast">{toast}</div>}
-          {isLoading ? <AdminSkeleton /> : renderPage(page, (message) => setToast(message))}
+          {loginOpen && !adminToken && (
+            <AdminLogin
+              onLogin={(token, user) => { setAdminToken(token); setAdminUser(user); setLoginOpen(false); setToast(`Welcome, ${user?.name || "admin"}`); }}
+            />
+          )}
+          {isLoading ? <AdminSkeleton /> : renderPage(page, (message) => setToast(message), adminToken)}
         </div>
       </main>
     </div>

@@ -1,4 +1,5 @@
 import NewsletterForm from "./NewsletterForm.jsx";
+import SplitHeading from "./SplitHeading.jsx";
 
 export default function Newsletter({ content }) {
   return (
@@ -12,9 +13,9 @@ export default function Newsletter({ content }) {
       <div className="newsletter__scrim" aria-hidden="true" />
 
       <div className="newsletter__content">
-        <p className="eyebrow eyebrow--light">{content?.eyebrow || "Join Our Community"}</p>
-        <h2 className="section-heading section-heading--light">{content?.heading || "Be the First to Know"}</h2>
-        <p className="newsletter__copy">
+        <p className="eyebrow eyebrow--light reveal-up">{content?.eyebrow || "Join Our Community"}</p>
+        <SplitHeading className="section-heading section-heading--light">{content?.heading || "Be the First to Know"}</SplitHeading>
+        <p className="newsletter__copy reveal-up stagger-2">
           {content?.description || "Get exclusive offers, early access to new drops, and style inspiration straight to your inbox."}
         </p>
         <NewsletterForm source="newsletter-section" variant="light" />

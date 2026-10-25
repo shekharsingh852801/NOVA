@@ -12,11 +12,14 @@ const orderSchema = new mongoose.Schema({
   items_json: { type: String, required: true },
   subtotal: { type: Number, required: true, min: 0 },
   shipping: { type: Number, required: true, min: 0 },
+  coupon_code: { type: String, default: null },
+  discount: { type: Number, required: true, min: 0, default: 0 },
   total: { type: Number, required: true, min: 0 },
   payment_method: { type: String, required: true, enum: ['cash_on_delivery', 'pay_on_delivery'] },
   payment_status: { type: String, required: true, default: 'pending', enum: ['pending', 'paid', 'refunded'] },
   status: { type: String, required: true, default: 'confirmed', enum: ['confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'] },
   progress: { type: Number, required: true, default: 2, min: 1, max: 6 },
+  review_email_sent: { type: Boolean, required: true, default: false },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: false }
 });

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../context/StoreContext.jsx";
 import { createBackInStockRequest, createContactRequest, createReturnRequest, fetchCustomerReturnRequests, isApiConfigured, submitReview } from "../api/api.js";
+import { readStoredJson } from "../utils/storage.js";
+import { computeCouponDiscount } from "../utils/coupons.js";
 import { ArrowIcon, CloseIcon, StarIcon } from "./Icons.jsx";
 
 function readProfile() {
@@ -17,21 +19,39 @@ const formatPrice = (value) => `$${Number(value || 0).toFixed(2)}`;
 const money = formatPrice;
 
 export function CheckoutPage({ onPlaceOrder }) {
-  const { cart, addresses, products } = useStore();
+  const { cart, addresses, products, coupon, applyCoupon, clearCoupon } = useStore();
   const profile = readProfile();
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [placing, setPlacing] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [couponError, setCouponError] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
   const [form, setForm] = useState({ name: profile.name || "", email: profile.email || "", phone: "", address: "", city: "", state: "", postal: "", payment: "Cash on delivery" });
   const lines = cart.map((line) => ({ ...line, product: products.find((product) => product.id === line.id) })).filter((line) => line.product);
   const subtotal = lines.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const shipping = subtotal >= 75 || subtotal === 0 ? 0 : 8;
+  const discount = coupon ? computeCouponDiscount(coupon, subtotal, shipping) : 0;
+  const total = Math.max(0, subtotal + shipping - discount);
   const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   const useAddress = (event) => {
     const address = addresses.find((item) => item.id === event.target.value);
     setSelectedAddress(event.target.value);
     if (address) setForm((current) => ({ ...current, name: current.name || address.recipient, address: address.address, city: address.city, state: address.state, postal: address.postal }));
+  };
+  const tryApplyCoupon = async () => {
+    if (!couponInput.trim() || couponBusy) return;
+    setCouponBusy(true);
+    setCouponError("");
+    try {
+      await applyCoupon(couponInput, subtotal);
+      setCouponInput("");
+    } catch (err) {
+      setCouponError(err.message || "This coupon could not be applied.");
+    } finally {
+      setCouponBusy(false);
+    }
   };
   const continueStep = () => {
     if (step === 0 && (!form.name.trim() || !form.email.trim() || !form.phone.trim())) { setError("Please complete your contact details."); return; }
@@ -43,13 +63,20 @@ export function CheckoutPage({ onPlaceOrder }) {
     setError("");
     setPlacing(true);
     try {
-      await onPlaceOrder({ form, lines, subtotal, shipping });
+      await onPlaceOrder({ form, lines, subtotal, shipping, discount, couponCode: coupon?.code });
+      clearCoupon();
     } catch (submitError) {
       setError(submitError.message || "We couldn't place the order. Please try again.");
     } finally {
       setPlacing(false);
     }
   };
+
+  useEffect(() => {
+    if (step === 0 && lines.length) {
+      import("../utils/analytics.js").then(({ trackBeginCheckout }) => trackBeginCheckout(subtotal, lines)).catch(() => {});
+    }
+  }, [step, lines.length, subtotal]);
 
   return <main className="commerce-page checkout-page">
     <p className="eyebrow eyebrow--dark">NOVA / CHECKOUT</p>
@@ -81,13 +108,31 @@ export function CheckoutPage({ onPlaceOrder }) {
           <p className="checkout-note">Payment: {form.payment}. {isApiConfigured() ? "The order will be recorded with payment pending; no online payment is processed." : "This creates a local demo order only; no payment will be charged."}</p>
         </>}
         {error && <p className="form-error" role="alert">{error}</p>}
-        {step < 3 ? <button className="btn btn--dark checkout-continue" type="button" onClick={continueStep}>Continue to {step === 0 ? "shipping" : step === 1 ? "payment" : "review"} <ArrowIcon /></button> : <button className="btn btn--dark checkout-continue" type="button" disabled={!lines.length || placing} onClick={submitOrder}>{placing ? "Placing order…" : `${isApiConfigured() ? "Place order" : "Place demo order"} · ${formatPrice(subtotal + shipping)}`} <ArrowIcon /></button>}
+        {step < 3 ? <button className="btn btn--dark checkout-continue" type="button" onClick={continueStep}>Continue to {step === 0 ? "shipping" : step === 1 ? "payment" : "review"} <ArrowIcon /></button> : <button className="btn btn--dark checkout-continue" type="button" disabled={!lines.length || placing} onClick={submitOrder}>{placing ? "Placing order…" : `${isApiConfigured() ? "Place order" : "Place demo order"} · ${formatPrice(total)}`} <ArrowIcon /></button>}
       </form>
       <aside className="checkout-summary">
         <div className="checkout-summary__heading"><h2>Your edit</h2><span>{lines.reduce((sum, line) => sum + line.quantity, 0)} pieces</span></div>
         {lines.map(({ product, size, color, quantity }) => <div className="checkout-summary__item" key={`${product.id}-${size}-${color}`}><img src={product.images[0]} alt={product.name} /><div><span>{product.name}</span><small>Size {size} · {color} · Qty {quantity}</small></div><strong>{formatPrice(product.price * quantity)}</strong></div>)}
         {!lines.length && <p className="muted-copy">Your bag is empty.</p>}
-        <div className="checkout-summary__totals"><p><span>Subtotal</span><span>{formatPrice(subtotal)}</span></p><p><span>Shipping</span><span>{shipping ? formatPrice(shipping) : "Complimentary"}</span></p><p className="checkout-summary__total"><strong>Total</strong><strong>{formatPrice(subtotal + shipping)}</strong></p></div>
+        {coupon ? (
+          <div className="coupon-box coupon-box--applied">
+            <span className="coupon-box__label">Code <strong>{coupon.code}</strong> applied{coupon.type === "percent" ? ` — ${coupon.value}% off` : coupon.type === "fixed" ? ` — ${formatPrice(coupon.value)} off` : " — free shipping"}</span>
+            <button type="button" className="text-action" onClick={clearCoupon}>Remove</button>
+          </div>
+        ) : (
+          <div className="coupon-box">
+            <input
+              value={couponInput}
+              onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+              placeholder="Coupon code (e.g. WELCOME15)"
+              aria-label="Coupon code"
+              onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); tryApplyCoupon(); } }}
+            />
+            <button type="button" className="btn btn--dark" disabled={!couponInput.trim() || couponBusy} onClick={tryApplyCoupon}>{couponBusy ? "Checking…" : "Apply"}</button>
+          </div>
+        )}
+        {couponError && <p className="form-error" role="alert">{couponError}</p>}
+        <div className="checkout-summary__totals"><p><span>Subtotal</span><span>{formatPrice(subtotal)}</span></p>{discount > 0 && <p className="checkout-summary__discount"><span>Coupon discount</span><span>−{formatPrice(discount)}</span></p>}<p><span>Shipping</span><span>{coupon?.type === "free_shipping" && shipping ? "Complimentary" : shipping ? formatPrice(shipping) : "Complimentary"}</span></p><p className="checkout-summary__total"><strong>Total</strong><strong>{formatPrice(total)}</strong></p></div>
       </aside>
     </div>
   </main>;

@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { fetchTestimonials } from "../api/api.js";
 import { fallbackTestimonials } from "../data/testimonials.js";
 import { ChevronIcon, StarIcon } from "./Icons.jsx";
+import SplitHeading from "./SplitHeading.jsx";
 
 export default function Testimonials({ content }) {
   const [testimonials, setTestimonials] = useState(fallbackTestimonials);
   const trackRef = useRef(null);
+  const pausedRef = useRef(false);
 
   useEffect(() => {
     if (content?.items) return undefined;
@@ -42,18 +44,24 @@ export default function Testimonials({ content }) {
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      if (!document.hidden) scroll(1);
+      if (!document.hidden && !pausedRef.current) scroll(1);
     }, 3000);
 
     return () => window.clearInterval(intervalId);
   }, [visibleTestimonials, scroll]);
 
   return (
-    <section className="testimonials">
+    <section
+      className="testimonials"
+      onMouseEnter={() => { pausedRef.current = true; }}
+      onMouseLeave={() => { pausedRef.current = false; }}
+      onFocus={() => { pausedRef.current = true; }}
+      onBlur={() => { pausedRef.current = false; }}
+    >
       <div className="testimonials__intro">
         <div>
           <p className="eyebrow eyebrow--light reveal-up">{content?.eyebrow || "Real Stories"}</p>
-          <h2 className="section-heading section-heading--light reveal-up stagger-1">{content?.heading || "Loved by Our Community"}</h2>
+          <SplitHeading className="section-heading section-heading--light">{content?.heading || "Loved by Our Community"}</SplitHeading>
         </div>
       </div>
 

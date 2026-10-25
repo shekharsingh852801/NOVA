@@ -1,5 +1,6 @@
 import { ArrowIcon } from "./Icons.jsx";
 import { ProductGrid } from "./Commerce.jsx";
+import SplitHeading from "./SplitHeading.jsx";
 
 export default function NewArrivals({ products = [], loading, onQuickView, onViewAll, content }) {
   return (
@@ -7,7 +8,7 @@ export default function NewArrivals({ products = [], loading, onQuickView, onVie
       <div className="section-header">
         <div>
           <p className="eyebrow eyebrow--light reveal-up">{content?.eyebrow || "Latest Drop"}</p>
-          <h2 className="section-heading section-heading--light reveal-up stagger-1">{content?.heading || "New Arrivals"}</h2>
+          <SplitHeading className="section-heading section-heading--light">{content?.heading || "New Arrivals"}</SplitHeading>
         </div>
         <button type="button" onClick={onViewAll} className="text-link text-link--light">
           {content?.buttonLabel || "View All New Arrivals"} <ArrowIcon />

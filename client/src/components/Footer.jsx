@@ -66,8 +66,8 @@ export default function Footer({ content }) {
   return (
     <footer className="footer">
       <div className="footer__top">
-        <div className="footer__brand">
-          <p className="footer__logo">NOVA</p>
+        <div className="footer__brand reveal-up">
+          <p className="footer__logo reveal-mask"><span className="footer__logo-inner">NOVA</span></p>
           <p className="footer__tagline">{content?.tagline || "Better Style. A Brighter Tomorrow."}</p>
           <div className="footer__socials">
             {socials.map((s) => {
@@ -90,7 +90,7 @@ export default function Footer({ content }) {
         </div>
 
         {linkColumns.map((col) => (
-          <nav className="footer__column" key={col.title} aria-label={col.title}>
+          <nav className="footer__column reveal-up" key={col.title} aria-label={col.title}>
             <p className="footer__column-title">{col.title}</p>
             <ul>
               {col.links.map((link) => (
@@ -102,14 +102,14 @@ export default function Footer({ content }) {
           </nav>
         ))}
 
-        <div className="footer__newsletter">
+        <div className="footer__newsletter reveal-up">
           <p className="footer__column-title">{content?.newsletterHeading || "Join our community"}</p>
           <p className="footer__newsletter-copy">{content?.newsletterDescription || "Get exclusive updates and offers"}</p>
           <NewsletterForm source="footer" variant="dark" />
         </div>
       </div>
 
-      <div className="footer__bottom">
+      <div className="footer__bottom reveal-up">
         <p>{content?.copyright || "© 2026 NOVA. All rights reserved."}</p>
         <div className="footer__bottom-links">
           {(content?.legalLinks || [
