@@ -1894,7 +1894,82 @@ h1, h2, h3, p {
   .lookbook__strip { grid-template-columns: repeat(2, 1fr); }
   .section-header { flex-direction: column; align-items: flex-start; gap: 14px; }
   .hero__scroll { display: none; }
-  .footer__top { grid-template-columns: 1fr; }
+  .footer__top {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px 12px;
+    padding: 28px 20px 22px;
+  }
+  .footer__brand {
+    grid-column: 1 / -1;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line-on-dark);
+  }
+  .footer__logo { font-size: 27px; }
+  .footer__tagline { margin: 4px 0 14px; }
+  .footer__socials { gap: 9px; }
+  .footer__social-icon { width: 36px; height: 36px; }
+  .footer__newsletter {
+    grid-column: 1 / -1;
+    padding: 20px 0;
+    border-top: 1px solid var(--line-on-dark);
+    border-bottom: 1px solid var(--line-on-dark);
+  }
+  .footer__newsletter .footer__column-title {
+    margin-bottom: 4px;
+    font: 500 18px/1.25 var(--font-display);
+  }
+  .footer__newsletter-copy { margin-bottom: 12px; }
+  .footer__newsletter .newsletter-form {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .footer__newsletter .newsletter-form input {
+    width: 0;
+    min-width: 0;
+    min-height: 42px;
+  }
+  .footer__newsletter .newsletter-form button {
+    width: auto;
+    min-height: 42px;
+    padding: 10px 14px;
+  }
+  .footer__column {
+    min-width: 0;
+    padding: 0;
+  }
+  .footer__column-title {
+    margin-bottom: 11px;
+    color: var(--white);
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .footer__column ul {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .footer__column a { font-size: 10px; line-height: 1.5; }
+  .footer__column:last-of-type { grid-column: auto; }
+  .footer__bottom {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+    padding: 15px 20px calc(15px + env(safe-area-inset-bottom));
+  }
+  .footer__bottom-links {
+    flex-wrap: wrap;
+    gap: 7px 14px;
+  }
+  .footer__bottom-links a { font-size: 10px; }
+  .footer__lang { padding: 5px 10px; }
+}
+
+@media (max-width: 360px) {
+  .footer__newsletter .newsletter-form { flex-wrap: wrap; }
+  .footer__newsletter .newsletter-form button { width: 100%; justify-content: center; }
 }
 
 @media (max-width: 480px) {
