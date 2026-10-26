@@ -1278,6 +1278,13 @@ select.form-control {
   font-size: 10px;
 }
 
+.homepage-list-item__body > .ghost-button:not(.homepage-remove-button) {
+  justify-self: start;
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
 .homepage-product-picker > p {
   margin: -5px 0 4px;
   color: var(--muted-on-dark);

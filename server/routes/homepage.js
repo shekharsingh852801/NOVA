@@ -63,11 +63,21 @@ const sharedSection = {
   id: z.string(),
   enabled: z.boolean(),
 };
+const heroSlide = z.object({
+  image: imageUrl,
+  alt: text(300),
+  eyebrow: text(100),
+  heading: text(180).min(1),
+  description: text(600),
+  primaryLabel: text(80).min(1),
+  primaryHref: link,
+}).strict();
+const defaultHeroSlides = defaultHomepageContent.sections.find((section) => section.id === "hero").slides;
 const sectionSchemas = [
   z.object({
     ...sharedSection, id: z.literal("hero"), image: imageUrl, alt: text(300), eyebrow: text(100),
     heading: text(180).min(1), description: text(600), primaryLabel: text(80).min(1),
-    primaryHref: link, secondaryLabel: text(80),
+    primaryHref: link, secondaryLabel: text(80), slides: z.array(heroSlide).max(9).default(defaultHeroSlides),
   }).strict(),
   z.object({ ...sharedSection, id: z.literal("featureBar"), items: z.array(pair).min(1).max(8) }).strict(),
   z.object({

@@ -288,6 +288,16 @@ h1, h2, h3, p {
   height: 100%;
   object-fit: cover;
   object-position: 65% 0%;
+  opacity: 0;
+  transition: opacity 700ms var(--ease);
+}
+.hero__image--active {
+  opacity: 1;
+  animation: hero-image-drift 3s ease-out both;
+}
+@keyframes hero-image-drift {
+  from { transform: scale(1.07); }
+  to { transform: scale(1.015); }
 }
 .hero__scrim {
   position: absolute;
@@ -300,6 +310,17 @@ h1, h2, h3, p {
   width: 100%;
   margin: 0 auto;
   padding: 0 24px;
+}
+.hero__slide-copy {
+  opacity: 1;
+  transform: none;
+}
+.hero__slide-copy--enter {
+  animation: hero-copy-enter 650ms var(--ease) both;
+}
+@keyframes hero-copy-enter {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .hero__heading {
   font-family: var(--font-display);
@@ -321,6 +342,48 @@ h1, h2, h3, p {
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
+}
+.hero__controls {
+  position: absolute;
+  z-index: 2;
+  bottom: 24px;
+  left: max(24px, calc((100vw - var(--container)) / 2 + 24px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hero__control {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line-on-dark);
+  border-radius: 50%;
+  background: rgba(12, 12, 11, 0.35);
+  color: var(--white);
+  transition: background 0.2s var(--ease);
+}
+.hero__control:hover {
+  background: rgba(12, 12, 11, 0.75);
+}
+.hero__indicators {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.hero__indicator {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(247, 246, 242, 0.55);
+  transition: width 0.2s var(--ease), background 0.2s var(--ease);
+}
+.hero__indicator--active {
+  width: 20px;
+  background: var(--white);
 }
 .hero__scroll {
   position: absolute;

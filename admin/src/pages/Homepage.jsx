@@ -15,7 +15,7 @@ const sectionNames = {
 };
 
 const sectionDescriptions = {
-  hero: 'Lead with the campaign image and message.',
+  hero: 'Manage the lead banner and product launch slides with matching copy and product links.',
   featureBar: 'Highlight the reasons customers choose NOVA.',
   newArrivals: 'Choose the products featured on the home page.',
   categories: 'Set the category tiles shoppers can explore.',
@@ -40,12 +40,17 @@ function clone(value) {
 }
 
 function TextField({ label, value, onChange, multiline = false, type = 'text', placeholder = '', options }) {
+  const defaultOption = typeof options?.[0] === 'string' ? options[0] : options?.[0]?.value;
   return (
     <label className="homepage-field">
       <span>{label}</span>
       {options ? (
-        <select value={value ?? options[0]} onChange={(event) => onChange(event.target.value)}>
-          {options.map((option) => <option key={option} value={option}>{option}</option>)}
+        <select value={value ?? defaultOption} onChange={(event) => onChange(event.target.value)}>
+          {options.map((option) => {
+            const optionValue = typeof option === 'string' ? option : option.value;
+            const optionLabel = typeof option === 'string' ? option : option.label;
+            return <option key={optionValue} value={optionValue}>{optionLabel}</option>;
+          })}
         </select>
       ) : multiline ? (
         <textarea value={value ?? ''} placeholder={placeholder} rows={3} onChange={(event) => onChange(event.target.value)} />
@@ -106,6 +111,7 @@ function ListEditor({ title, label, items, fields, onChange, onUpload }) {
   const maximums = {
     messages: 5,
     items: fields.some((field) => field.key === 'quote') ? 10 : 8,
+    heroSlides: 9,
     stats: 8,
     points: 8,
     testimonials: 10,
@@ -121,16 +127,26 @@ function ListEditor({ title, label, items, fields, onChange, onUpload }) {
           type="button"
           className="ghost-button"
           disabled={items.length >= (maximums[title] || 10)}
-          onClick={() => onChange([...items, Object.fromEntries(fields.map((field) => [
-            field.key,
-            field.type === 'checkbox' ? false : field.type === 'number' || field.key === 'rating' ? 5 : field.options?.[0] || (field.key === 'cta' ? 'Shop Now' : ''),
-          ]))])}
+          onClick={() => onChange([...items, Object.fromEntries(fields.map((field) => {
+            const slideDefaults = {
+              alt: '',
+              eyebrow: 'New Arrival',
+              heading: 'New product launch',
+              description: 'Introduce the latest NOVA product to your customers.',
+              primaryLabel: 'Shop now',
+            };
+            const optionValue = typeof field.options?.[0] === 'string' ? field.options[0] : field.options?.[0]?.value;
+            const defaultValue = title === 'heroSlides'
+              ? slideDefaults[field.key] ?? ''
+              : field.type === 'checkbox' ? false : field.type === 'number' || field.key === 'rating' ? 5 : optionValue || (field.key === 'cta' ? 'Shop Now' : '');
+            return [field.key, defaultValue];
+          }))])}
         >
-          Add item
+          {title === 'heroSlides' ? 'Add launch slide' : 'Add item'}
         </button>
       </div>
       {items.map((item, index) => {
-        const summary = item.name || item.title || item.label || item.alt || item.quote || item.value || `Item ${index + 1}`;
+        const summary = item.name || item.title || item.heading || item.label || item.alt || item.quote || item.value || `Item ${index + 1}`;
         const image = item.image || item.src || item.avatar;
         return (
           <details className="homepage-list-item" key={`${title}-${index}`}>
@@ -176,11 +192,32 @@ function ListEditor({ title, label, items, fields, onChange, onUpload }) {
                       type={field.type === 'number' ? 'number' : 'text'}
                       multiline={field.type === 'textarea'}
                       options={field.options}
+                      placeholder={field.placeholder}
                       onChange={(value) => onChange(items.map((row, rowIndex) => rowIndex === index ? { ...row, [field.key]: field.type === 'number' ? Number(value) : value } : row))}
                     />
                   );
                 })}
               </div>
+              {title === 'heroSlides' && <>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={index === 0}
+                  onClick={() => onChange(items.map((row, rowIndex) => rowIndex === index - 1 ? items[index] : rowIndex === index ? items[index - 1] : row))}
+                  aria-label={`Move ${summary} up`}
+                >
+                  Move up
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={index === items.length - 1}
+                  onClick={() => onChange(items.map((row, rowIndex) => rowIndex === index ? items[index + 1] : rowIndex === index + 1 ? items[index] : row))}
+                  aria-label={`Move ${summary} down`}
+                >
+                  Move down
+                </button>
+              </>}
               <button
                 type="button"
                 className="ghost-button homepage-remove-button"
@@ -225,14 +262,36 @@ function SectionFields({ section, update, upload }) {
   switch (section.id) {
     case 'hero':
       return <div className="homepage-fields">
-        {image('image', 'Banner image')}
-        {field('alt', 'Image description')}
-        {field('eyebrow', 'Eyebrow')}
-        {field('heading', 'Heading', { multiline: true })}
-        {field('description', 'Description', { multiline: true })}
-        {field('primaryLabel', 'Primary button label')}
-        {field('primaryHref', 'Primary button link', { placeholder: '#new-arrivals or #/shop' })}
-        {field('secondaryLabel', 'Video button label')}
+        <div className="homepage-list-editor">
+          <div className="homepage-list-heading"><h4>Lead banner</h4></div>
+          {image('image', 'Banner image')}
+          {field('alt', 'Image description')}
+          {field('eyebrow', 'Eyebrow')}
+          {field('heading', 'Heading', { multiline: true })}
+          {field('description', 'Description', { multiline: true })}
+          {field('primaryLabel', 'Primary button label')}
+          {field('primaryHref', 'Primary button destination', { placeholder: '#new-arrivals or #/product/product-slug' })}
+          {field('secondaryLabel', 'Video button label')}
+        </div>
+        {list('slides', 'Product launch slides', [
+          { key: 'image', label: 'Banner image', type: 'image' },
+          { key: 'alt', label: 'Image description' },
+          { key: 'eyebrow', label: 'Eyebrow', placeholder: 'New Arrival' },
+          { key: 'heading', label: 'Product headline', type: 'textarea' },
+          { key: 'description', label: 'Description', type: 'textarea' },
+          { key: 'primaryLabel', label: 'Button label' },
+          {
+            key: 'primaryHref',
+            label: 'Featured product',
+            options: [
+              { value: '#/shop', label: 'Shop all products' },
+              ...(section.availableProducts || []).map((product) => ({
+                value: `#/product/${product.slug}`,
+                label: product.name,
+              })),
+            ],
+          },
+        ])}
       </div>;
     case 'featureBar':
       return list('items', 'Feature items', [
@@ -702,7 +761,7 @@ export default function Homepage() {
             </header>
             <div className="homepage-section-editor__body">
               <SectionFields
-                section={activeSection.id === 'newArrivals' ? { ...activeSection, availableProducts: products } : activeSection}
+                section={activeSection.id === 'newArrivals' || activeSection.id === 'hero' ? { ...activeSection, availableProducts: products } : activeSection}
                 update={(patch) => updateSection(activeSection.id, patch)}
                 upload={upload}
               />

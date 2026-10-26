@@ -15,6 +15,7 @@ after(async () => {
 test("homepage defaults satisfy the content contract", () => {
   const result = homepageSchema.safeParse(defaultHomepageContent);
   assert.equal(result.success, true, result.success ? "" : result.error.message);
+  assert.equal(defaultHomepageContent.sections.find((section) => section.id === "hero").slides.length, 3);
 });
 
 test("homepage content rejects missing or duplicate sections", () => {
@@ -32,6 +33,10 @@ test("homepage content rejects unsafe links and unsupported fields", () => {
   unsafeLink.sections.find((section) => section.id === "hero").primaryHref = "javascript:alert(1)";
   assert.equal(homepageSchema.safeParse(unsafeLink).success, false);
 
+  const unsafeSlideLink = structuredClone(defaultHomepageContent);
+  unsafeSlideLink.sections.find((section) => section.id === "hero").slides[0].primaryHref = "javascript:alert(1)";
+  assert.equal(homepageSchema.safeParse(unsafeSlideLink).success, false);
+
   const unsupportedField = structuredClone(defaultHomepageContent);
   unsupportedField.sections.find((section) => section.id === "hero").customMarkup = "<script>";
   assert.equal(homepageSchema.safeParse(unsupportedField).success, false);
@@ -40,12 +45,11 @@ test("homepage content rejects unsafe links and unsupported fields", () => {
 test("homepage content includes homepage sections and editable footer content", () => {
   assert.deepEqual(Object.keys(defaultHomepageContent), ["footer", "sections"]);
 
-  const legacyRecord = {
-    ...defaultHomepageContent,
-    footer: { tagline: "Legacy store footer" },
-    header: { shopLabel: "Old navigation label" },
-    announcement: { enabled: false, messages: [] },
-  };
+  const legacyRecord = structuredClone(defaultHomepageContent);
+  legacyRecord.footer = { tagline: "Legacy store footer" };
+  legacyRecord.header = { shopLabel: "Old navigation label" };
+  legacyRecord.announcement = { enabled: false, messages: [] };
+  delete legacyRecord.sections.find((section) => section.id === "hero").slides;
   const normalized = normalizeHomepageContent(legacyRecord);
 
   assert.deepEqual(Object.keys(normalized), ["sections", "footer"]);
