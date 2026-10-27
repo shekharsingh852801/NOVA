@@ -106,18 +106,17 @@ export default function AboutPage({ onNavigate }) {
           content: "";
           position: absolute;
           inset: 0;
-          background: linear-gradient(90deg, rgba(7, 8, 9, 0.96) 0%, rgba(7, 8, 9, 0.8) 24%, rgba(7, 8, 9, 0.26) 60%, rgba(7, 8, 9, 0.12) 100%);
+          background: linear-gradient(90deg, rgba(7, 8, 9, 0.76) 0%, rgba(7, 8, 9, 0.55) 24%, rgba(7, 8, 9, 0.12) 60%, rgba(7, 8, 9, 0.04) 100%);
           z-index: 1;
         }
 
         .nova-about-page__hero-image {
           position: absolute;
           inset: 0;
-          background-image: url("https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=1400&q=80");
+          background-image: url("/nova-about-hero.png");
           background-size: cover;
-          background-position: center center;
-          filter: grayscale(1) contrast(1.12) brightness(0.7);
-          transform: scale(1.06);
+          background-position: 100% center;
+          filter: contrast(1.05) brightness(0.84);
         }
 
         .nova-about-page__hero-inner {
@@ -239,7 +238,7 @@ export default function AboutPage({ onNavigate }) {
 
         .nova-about-page__story {
           background: #f3efe9;
-          padding: 34px 42px 0;
+          padding: 34px 42px;
           border-bottom: 1px solid rgba(23, 22, 17, 0.12);
         }
 
@@ -247,19 +246,47 @@ export default function AboutPage({ onNavigate }) {
           max-width: 1360px;
           margin: 0 auto;
           display: grid;
-          grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.3fr) minmax(270px, 0.72fr);
+          grid-template-columns: 90px minmax(0, 1.2fr) minmax(0, 1.3fr) minmax(270px, 0.72fr);
           gap: 26px;
           align-items: center;
           background: #f3efe9;
         }
 
+        .nova-about-page__story-marker {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 10px;
+          padding-left: 6px;
+          color: #171611;
+        }
+
+        .nova-about-page__story-marker-number,
+        .nova-about-page__story-marker-label {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+        }
+
+        .nova-about-page__story-marker-line {
+          width: 1px;
+          height: 90px;
+          margin-left: 4px;
+          background: linear-gradient(to bottom, rgba(23, 22, 17, 0.55), rgba(23, 22, 17, 0.12));
+        }
+
+        .nova-about-page__story-marker-label {
+          line-height: 1.7;
+          color: rgba(23, 22, 17, 0.7);
+        }
+
         .nova-about-page__story-image {
-          height: 470px;
-          background-image: url("https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80");
+          aspect-ratio: 1.29;
+          background-image: url("/nova-about-built-on-vision.png");
           background-size: cover;
           background-position: center center;
-          border-radius: 4px 4px 0 0;
-          filter: grayscale(0.35) contrast(1.05) brightness(0.94);
+          border-radius: 0;
+          filter: contrast(1.05) brightness(0.94);
         }
 
         .nova-about-page__story-copy {
@@ -356,10 +383,10 @@ export default function AboutPage({ onNavigate }) {
           content: "";
           position: absolute;
           inset: 0;
-          background-image: url("https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&w=1800&q=80");
+          background-image: url("/nova-about-growing-movement.png");
           background-size: cover;
           background-position: center center;
-          filter: grayscale(0.7) contrast(1.18) brightness(0.54);
+          filter: contrast(1.05) brightness(0.65);
           transform: scale(1.09);
         }
 
@@ -514,6 +541,11 @@ export default function AboutPage({ onNavigate }) {
         }
 
         @media (max-width: 980px) {
+          .nova-about-page__hero-image {
+            background-image: url("/nova-about-hero-portrait.png");
+            background-position: center top;
+          }
+
           .nova-about-page__hero-inner {
             grid-template-columns: 1fr;
             padding-top: 110px;
@@ -541,6 +573,22 @@ export default function AboutPage({ onNavigate }) {
             grid-template-columns: 1fr;
           }
 
+          .nova-about-page__story-marker {
+            flex-direction: row;
+            align-items: center;
+            padding-left: 0;
+          }
+
+          .nova-about-page__story-marker-line {
+            width: 38px;
+            height: 1px;
+            margin-left: 0;
+          }
+
+          .nova-about-page__story-marker-label br {
+            display: none;
+          }
+
           .nova-about-page__story-image {
             height: 420px;
           }
@@ -563,6 +611,15 @@ export default function AboutPage({ onNavigate }) {
           .nova-about-page__hero,
           .nova-about-page__hero-inner {
             min-height: 620px;
+          }
+
+          .nova-about-page__hero::before {
+            background: linear-gradient(180deg, rgba(7, 8, 9, 0.72) 0%, rgba(7, 8, 9, 0.5) 52%, rgba(7, 8, 9, 0.08) 100%);
+          }
+
+          .nova-about-page__hero-image {
+            background-size: auto 125%;
+            background-position: center top;
           }
 
           .nova-about-page__hero-inner,
@@ -644,6 +701,11 @@ export default function AboutPage({ onNavigate }) {
 
         <section id="nova-about-story" className="nova-about-page__story" aria-label="Our story section">
           <div className="nova-about-page__story-inner">
+            <div className="nova-about-page__story-marker" aria-hidden="true">
+              <span className="nova-about-page__story-marker-number">02</span>
+              <span className="nova-about-page__story-marker-line" />
+              <span className="nova-about-page__story-marker-label">THE<br />JOURNEY</span>
+            </div>
             <div className="nova-about-page__story-image" aria-label="NOVA story image" role="img" />
 
             <div className="nova-about-page__story-copy">
@@ -700,7 +762,6 @@ export default function AboutPage({ onNavigate }) {
               </div>
             </div>
           </div>
-          <div className="nova-about-page__stats-quote">Same values,<br />bigger dreams.</div>
         </section>
 
         <section className="nova-about-page__mission" aria-label="Our mission section">
