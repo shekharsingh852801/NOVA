@@ -15,7 +15,7 @@ import Footer from "./components/Footer.jsx";
 
 import { StoreProvider, useStore } from "./context/StoreContext.jsx";
 import { readStoredJson, writeStoredJson } from "./utils/storage.js";
-import { createOrder, isApiConfigured, syncCart, fetchCustomerOrders, fetchHomepage, fetchHomepagePreview } from "./api/api.js";
+import { createOrder, isApiConfigured, syncCart, fetchCustomerOrders, fetchHomepage, fetchHomepagePreview, fetchCollectionPage, fetchCollectionPagePreview } from "./api/api.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import AuthPage from "./components/AuthPage.jsx";
 import ResetPassword from "./components/ResetPassword.jsx";
@@ -112,6 +112,9 @@ function Storefront() {
   const homepageUrlParams = new URLSearchParams(window.location.search);
   const homepagePreviewToken = homepageUrlParams.get("homepagePreview");
   const homepageSectionPreview = homepagePreviewToken ? homepageUrlParams.get("section") : null;
+  const [collectionPageContent, setCollectionPageContent] = useState(null);
+  const [collectionPagePreviewError, setCollectionPagePreviewError] = useState("");
+  const collectionPagePreviewToken = homepageUrlParams.get("collectionPreview");
 
   useEffect(() => {
     let active = true;
@@ -130,6 +133,25 @@ function Storefront() {
     });
     return () => { active = false; };
   }, [homepagePreviewToken]);
+
+  useEffect(() => {
+    if (pathname !== "collections" && !pathname.startsWith("collections/")) return undefined;
+    let active = true;
+    const loadCollectionPage = collectionPagePreviewToken
+      ? fetchCollectionPagePreview(collectionPagePreviewToken)
+      : fetchCollectionPage();
+    loadCollectionPage.then((result) => {
+      if (active) setCollectionPageContent(result.content);
+    }).catch((error) => {
+      if (!active) return;
+      if (collectionPagePreviewToken) {
+        setCollectionPagePreviewError(error.message || "This collection page preview could not be loaded.");
+      } else {
+        console.error("Failed to load published collection page content:", error);
+      }
+    });
+    return () => { active = false; };
+  }, [pathname, collectionPagePreviewToken]);
 
   useEffect(() => {
     if (!homepageSectionPreview || !homepagePreviewToken || (!homepageContent && !homepagePreviewError)) return undefined;
@@ -398,7 +420,7 @@ function Storefront() {
       {!homepageSectionPreview && showPagePreloader && <PagePreloader />}
       {!homepageSectionPreview && pathname !== "auth" && (
         <>
-          {pathname === "" && homepagePreviewToken && homepageContent && <div className="homepage-preview-banner">Draft preview — not visible to shoppers</div>}
+          {((pathname === "" && homepagePreviewToken && homepageContent) || ((pathname === "collections" || pathname.startsWith("collections/")) && collectionPagePreviewToken && collectionPageContent)) && <div className="homepage-preview-banner">Draft preview — not visible to shoppers</div>}
           <AnnouncementBar />
           <Navbar
             customer={customer}
@@ -463,9 +485,23 @@ function Storefront() {
       ) : pathname === "success" ? (
         <OrderSuccess order={successOrder} onNavigate={navigate} />
       ) : pathname === "collections" ? (
-        <CollectionsPage />
+        collectionPagePreviewToken && collectionPagePreviewError ? (
+          <p className="homepage-preview-message" role="alert">{collectionPagePreviewError}</p>
+        ) : collectionPagePreviewToken && !collectionPageContent ? (
+          <p className="homepage-preview-message" role="status">Loading draft preview…</p>
+        ) : (
+          <CollectionsPage content={collectionPageContent} />
+        )
       ) : collection ? (
-        <CollectionDetail collection={collection} routePath={pathname} queryString={queryString} onQuickView={openQuickView} />
+        <CollectionDetail
+          collection={{
+            ...collection,
+            productSlugs: collectionPageContent?.collections.find((item) => item.slug === collection.slug)?.productSlugs,
+          }}
+          routePath={pathname}
+          queryString={queryString}
+          onQuickView={openQuickView}
+        />
       ) : articlePage ? (
         <JournalPage articleSlug={articleSlug} />
       ) : pathname === "about" ? (

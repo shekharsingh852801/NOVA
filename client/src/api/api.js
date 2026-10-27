@@ -41,6 +41,14 @@ export async function fetchHomepagePreview(token) {
   return request(`/homepage/preview/${encodeURIComponent(token)}`);
 }
 
+export async function fetchCollectionPage() {
+  return request("/collections");
+}
+
+export async function fetchCollectionPagePreview(token) {
+  return request(`/collections/preview/${encodeURIComponent(token)}`);
+}
+
 export async function subscribeToNewsletter(email, source) {
   return request("/newsletter/subscribe", {
     method: "POST",

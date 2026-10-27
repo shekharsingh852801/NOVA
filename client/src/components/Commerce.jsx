@@ -709,17 +709,30 @@ export function OrderSuccess({ order, onNavigate }) {
   return <main className="commerce-page order-success"><p className="eyebrow eyebrow--dark">NOVA / THANK YOU</p><h1>Good things are on their way.</h1><p>{order?.source === "server" ? "Your order has been recorded. Payment remains pending until a provider is connected." : "Your demo order has been saved on this device."}</p>{order && <p className="order-success__number">Order {order.id} · {money(order.total)}</p>}<div><button className="btn btn--dark" onClick={() => onNavigate("tracking")}>Track your order <ArrowIcon /></button><button className="text-action" onClick={() => onNavigate("shop")}>Continue exploring</button></div></main>;
 }
 
-export function CollectionsPage() {
-  return <main className="commerce-page collections-page"><p className="eyebrow eyebrow--dark">A NOVA point of view</p><h1>Collections</h1><p className="page-lede">Stories told through the things we make and the ways we wear them.</p>{collections.map((item, index) => <a className={`collection-feature ${index % 2 ? "collection-feature--reverse" : ""}`} href={`#/collections/${item.slug}`} key={item.slug}><div><img src={`https://images.unsplash.com/${item.image}?auto=format&fit=crop&w=1200&q=85`} alt={`${item.title} collection`} loading="lazy" /></div><section><p className="eyebrow eyebrow--dark">NOVA / EDIT {String(index + 1).padStart(2, "0")}</p><h2>{item.title}</h2><p>{item.story}</p><span className="text-action">Explore collection <ArrowIcon /></span></section></a>)}</main>;
+export function CollectionsPage({ content }) {
+  const page = content || {
+    eyebrow: "A NOVA point of view",
+    title: "Collections",
+    description: "Stories told through the things we make and the ways we wear them.",
+    collections: collections.map((item) => ({
+      ...item,
+      image: `https://images.unsplash.com/${item.image}?auto=format&fit=crop&w=1200&q=85`,
+    })),
+  };
+  return <main className="commerce-page collections-page"><p className="eyebrow eyebrow--dark">{page.eyebrow}</p><h1>{page.title}</h1><p className="page-lede">{page.description}</p>{page.collections.map((item, index) => <a className={`collection-feature ${index % 2 ? "collection-feature--reverse" : ""}`} href={`#/collections/${item.slug}`} key={item.slug}><div><img src={resizedImage(item.image, 1200)} alt={`${item.title} collection`} loading="lazy" /></div><section><p className="eyebrow eyebrow--dark">NOVA / EDIT {String(index + 1).padStart(2, "0")}</p><h2>{item.title}</h2><p>{item.story}</p><span className="text-action">Explore collection <ArrowIcon /></span></section></a>)}</main>;
 }
 
 export function CollectionDetail({ collection, routePath, queryString = "", onQuickView }) {
   const { products: storeProducts = [], productsLoading } = useStore();
-  const products = collection.slug === "everyday-uniform"
-    ? storeProducts.filter((product) => product.bestSeller)
-    : collection.slug === "soft-structure"
-      ? storeProducts.filter((product) => product.category === "Women")
-      : storeProducts.filter((product) => product.featured).slice(0, 6);
+  const products = Array.isArray(collection.productSlugs)
+    ? collection.productSlugs
+      .map((slug) => storeProducts.find((product) => product.slug === slug))
+      .filter(Boolean)
+    : collection.slug === "everyday-uniform"
+      ? storeProducts.filter((product) => product.bestSeller)
+      : collection.slug === "soft-structure"
+        ? storeProducts.filter((product) => product.category === "Women")
+        : storeProducts.filter((product) => product.featured).slice(0, 6);
   const filters = useMemo(() => readListingFilters(queryString, "All", products), [queryString, products]);
   const currentParams = new URLSearchParams(queryString);
   const requestedSort = currentParams.get("sort") || "featured";
