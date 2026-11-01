@@ -424,7 +424,7 @@ export function ProductPage({ product, onQuickView, onFindSize, onBuyNow, onOpen
               <div className="size-chart" role="region" aria-label="Size chart">
                 <table>
                   <thead><tr>{Object.keys(sizeChart[0] || { size: "" }).map((column) => <th key={column}>{column === "size" ? "Size" : column.charAt(0).toUpperCase() + column.slice(1)}</th>)}</tr></thead>
-                  <tbody>{sizeChart.map((row) => <tr key={row.size} className={row.size === size ? "is-selected" : ""}>{Object.keys(sizeChart[0]).map((column) => <td key={column}>{row[column]}</td>)}</tr>)}</tbody>}
+                  <tbody>{sizeChart.map((row) => <tr key={row.size} className={row.size === size ? "is-selected" : ""}>{Object.keys(sizeChart[0]).map((column) => <td key={column}>{row[column]}</td>)}</tr>)}</tbody>
                 </table>
                 <p className="size-chart__note">Measurements are in inches, taken flat. Between sizes? Size up for a relaxed fit.</p>
               </div>

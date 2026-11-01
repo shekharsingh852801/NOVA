@@ -226,30 +226,30 @@ export function OrdersPage({ orders = [], onNavigate }) {
               const eligibleForReturn = order.status === "delivered";
 
               return (
-                <article key={order.id} style={{ borderBottom: "1px solid var(--line-on-light)", padding: "18px 0" }}>
-                  <div className="account-order" style={{ display: "grid", gridTemplateColumns: "88px 1fr auto", gap: "18px", alignItems: "center" }}>
-                    <img src={product?.images?.[0] || products[0]?.images[0]} alt={product?.name || "Order item"} style={{ width: "88px", height: "110px", objectFit: "cover" }} />
+                <article key={order.id} className="order-history-card">
+                  <div className="account-order order-history-card__inner">
+                    <img src={product?.images?.[0] || products[0]?.images[0]} alt={product?.name || "Order item"} className="order-history-card__thumb" />
                     <div style={{ display: "grid", gap: "6px" }}>
                       <strong style={{ fontSize: "12px" }}>#{orderReference}</strong>
                       <span style={{ color: "var(--muted-on-light)", fontSize: "11px" }}>{formatOrderDate(order.createdAt || order.date || new Date())}</span>
                       <span style={{ fontSize: "11px" }}>{itemCount} item{itemCount === 1 ? "" : "s"} · {order.status || tracking.label}</span>
                     </div>
-                    <div style={{ display: "grid", justifyItems: "end", gap: "10px" }}>
+                    <div className="order-history-card__summary">
                       <strong style={{ fontSize: "12px" }}>{money(order.total || 0)}</strong>
-                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "end" }}>
+                      <div className="order-history-card__actions">
                         <button type="button" className="text-action" onClick={() => onNavigate(`account/orders/${order.id}`)}>View details</button>
                         <button type="button" className="text-action" onClick={() => onNavigate("tracking")}>Track order</button>
                       </div>
                     </div>
                   </div>
                   {returnRequest ? (
-                    <p role="status" style={{ margin: "12px 0 0 106px", fontSize: "12px" }}>
+                    <p role="status" className="order-history-card__return-status">
                       Return request: <strong>{returnRequest.status}</strong>
                     </p>
                   ) : eligibleForReturn && customerToken ? (
-                    <div style={{ margin: "14px 0 0 106px" }}>
+                    <div className="order-history-card__return-wrap">
                       {returnOrderId === String(order.id) ? (
-                        <form onSubmit={(event) => { event.preventDefault(); submitReturnRequest(order); }} style={{ display: "grid", gap: "10px", maxWidth: "480px" }}>
+                        <form onSubmit={(event) => { event.preventDefault(); submitReturnRequest(order); }} className="order-history-card__return-form">
                           <label>
                             Reason for return
                             <select value={returnReason} onChange={(event) => setReturnReason(event.target.value)}>
@@ -278,7 +278,7 @@ export function OrdersPage({ orders = [], onNavigate }) {
                       )}
                     </div>
                   ) : eligibleForReturn ? (
-                    <p style={{ margin: "12px 0 0 106px", fontSize: "12px" }}>
+                    <p className="order-history-card__return-status">
                       <button type="button" className="text-action" onClick={() => onNavigate("auth")}>Sign in to request a return</button>
                     </p>
                   ) : null}

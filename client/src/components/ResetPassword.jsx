@@ -40,7 +40,7 @@ export default function ResetPassword({ onNavigate }) {
 
   if (success) {
     return (
-      <main className="commerce-page auth-page" style={{ maxWidth: "480px", margin: "0 auto", padding: "120px 24px", textAlign: "center" }}>
+      <main className="commerce-page auth-page auth-reset-page auth-reset-page--success">
         <p className="eyebrow eyebrow--dark">NOVA / SUCCESS</p>
         <h1>Password Reset</h1>
         <p className="page-lede" style={{ marginBottom: "32px", color: "green" }}>
@@ -54,7 +54,7 @@ export default function ResetPassword({ onNavigate }) {
   }
 
   return (
-    <main className="commerce-page auth-page" style={{ maxWidth: "480px", margin: "0 auto", padding: "120px 24px" }}>
+    <main className="commerce-page auth-page auth-reset-page">
       <p className="eyebrow eyebrow--dark">NOVA / RECOVER</p>
       <h1>New Password</h1>
       <p className="page-lede" style={{ marginBottom: "32px" }}>

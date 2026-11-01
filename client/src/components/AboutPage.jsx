@@ -76,6 +76,8 @@ export default function AboutPage({ onNavigate }) {
           background: #f3efe9;
           color: #171611;
           font-family: var(--font-body);
+          overflow-x: hidden;
+          max-width: 100%;
         }
 
         .nova-about-page * {
@@ -547,7 +549,7 @@ export default function AboutPage({ onNavigate }) {
           }
 
           .nova-about-page__hero-inner {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
             padding-top: 110px;
           }
 
@@ -570,9 +572,10 @@ export default function AboutPage({ onNavigate }) {
           }
 
           .nova-about-page__story-inner {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
           }
 
+          .nova-about-page__story-inner > * { min-width: 0; max-width: 100%; }
           .nova-about-page__story-marker {
             flex-direction: row;
             align-items: center;
@@ -598,7 +601,7 @@ export default function AboutPage({ onNavigate }) {
           }
 
           .nova-about-page__mission-inner {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
             align-items: start;
           }
 
