@@ -8,6 +8,8 @@
     "admin"
   ],
   "scripts": {
+    "start": "node start-all.js",
+    "dev:all": "node start-all.js",
     "dev": "npm run dev --workspace nova-client",
     "dev:admin": "npm run dev --workspace nova-admin",
     "dev:api": "npm run dev --workspace nova-server",

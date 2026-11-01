@@ -12,6 +12,7 @@ import Discounts from './pages/Discounts.jsx';
 import Inventory from './pages/Inventory.jsx';
 import Settings from './pages/Settings.jsx';
 import Homepage from './pages/Homepage.jsx';
+import Collections from './pages/Collections.jsx';
 import Returns from './pages/Returns.jsx';
 import Login from './pages/Login.jsx';
 import { fetchHealth } from './services/adminApi.js';
@@ -88,6 +89,7 @@ export default function App() {
                 <Route path="/shipping" element={<Placeholder title="Shipping" />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/homepage" element={<Homepage />} />
+                <Route path="/collections" element={<Collections />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

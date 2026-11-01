@@ -66,6 +66,9 @@ export default function Footer({ content }) {
   return (
     <footer className="footer">
       <div className="footer__top">
+        <div className="footer__watermark" role="img" aria-label="ÈLVERA">
+          <span aria-hidden="true">ÈLVERΛ</span>
+        </div>
         <div className="footer__brand reveal-up">
           <p className="footer__logo reveal-mask"><span className="footer__logo-inner">NOVA</span></p>
           <p className="footer__tagline">{content?.tagline || "Better Style. A Brighter Tomorrow."}</p>

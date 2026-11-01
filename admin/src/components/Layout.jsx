@@ -9,6 +9,7 @@ const navItems = [
   { id: 'customers', path: '/customers', label: 'Customers' },
   { id: 'discounts', path: '/discounts', label: 'Discounts' },
   { id: 'homepage', path: '/homepage', label: 'Homepage' },
+  { id: 'collections', path: '/collections', label: 'Collections' },
   { id: 'returns', path: '/returns', label: 'Returns & Refunds' },
   { id: 'shipping', path: '/shipping', label: 'Shipping' },
   { id: 'settings', path: '/settings', label: 'Store Settings' },
@@ -24,6 +25,7 @@ export default function Layout({ children, dbStatus }) {
     if (path.startsWith('/customers')) return 'Customer Directory';
     if (path.startsWith('/settings')) return 'System Settings';
     if (path.startsWith('/homepage')) return 'Homepage Editor';
+    if (path.startsWith('/collections')) return 'Collections Editor';
     if (path.startsWith('/inventory')) return 'Inventory Management';
     if (path.startsWith('/discounts')) return 'Marketing & Discounts';
     return 'Admin Control';

@@ -15,6 +15,7 @@ import testimonialRoutes from "./routes/testimonials.js";
 import customerRoutes from "./routes/customers.js";
 import uploadRoutes from "./routes/upload.js";
 import homepageRoutes from "./routes/homepage.js";
+import collectionPageRoutes from "./routes/collectionPage.js";
 import returnRoutes from "./routes/returns.js";
 import couponRoutes from "./routes/coupons.js";
 import settingRoutes from "./routes/settings.js";
@@ -54,9 +55,10 @@ export function createApp() {
   );
   app.use(express.json({
     limit: "10kb",
-    type: (req) => !req.path.startsWith("/api/homepage") && !req.path.startsWith("/api/upload"),
+    type: (req) => !req.path.startsWith("/api/homepage") && !req.path.startsWith("/api/collections") && !req.path.startsWith("/api/upload"),
   }));
   app.use("/api/homepage", express.json({ limit: "128kb" }));
+  app.use("/api/collections", express.json({ limit: "128kb" }));
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", service: "nova-server" });
@@ -88,6 +90,7 @@ export function createApp() {
   );
   app.use("/api/upload", uploadRoutes);
   app.use("/api/homepage", homepageRoutes);
+  app.use("/api/collections", collectionPageRoutes);
   app.use("/api/coupons", couponRoutes);
   app.use("/api/settings", settingRoutes);
 

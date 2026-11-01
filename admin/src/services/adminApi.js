@@ -124,4 +124,11 @@ export const adminApi = {
   }),
   publishHomepage: () => request('/homepage/admin/publish', { method: 'POST' }),
   createHomepagePreview: () => request('/homepage/admin/preview-token', { method: 'POST' }),
+  getCollectionPage: () => request('/collections/admin'),
+  saveCollectionPageDraft: (content) => request('/collections/admin/draft', {
+    method: 'PUT',
+    body: JSON.stringify(content),
+  }),
+  publishCollectionPage: () => request('/collections/admin/publish', { method: 'POST' }),
+  createCollectionPagePreview: () => request('/collections/admin/preview-token', { method: 'POST' }),
 };
