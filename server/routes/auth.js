@@ -16,7 +16,8 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    const admin = await Admin.findOne({ email });
+    const normalizedEmail = email.trim();
+    const admin = await Admin.findOne({ email: new RegExp(`^${normalizedEmail}$`, "i") });
 
     if (!admin) {
       return res.status(401).json({ message: "Invalid credentials" });
